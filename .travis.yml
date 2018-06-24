@@ -85,12 +85,7 @@ jobs:
      script:
        - ghcjs-pkg list
 
-   # - stage: install program dependencies (ghc)
-   #   install:
-   #    - cabal install -j1 --dependencies-only --enable-tests
-   #   script:
-   #     - ghc-pkg list
-   #
+   # needed due to https://github.com/ghcjs/ghcjs-base/issues/81
    - stage: install ghcjs-base (ghcjs)
      install:
        - cabal --version
