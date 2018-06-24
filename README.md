@@ -58,6 +58,11 @@ FAQ
     <https://help.github.com/articles/using-a-custom-domain-with-github-pages/>
     and set the domain name in the `fqdn` field in `.travis.yaml`.
 
+  * I changed something in `.travis.yaml`, but it does not seem to have an
+    effect?
+
+    You might have to [clear the Travis cache](https://docs.travis-ci.com/user/caching/#Clearing-Caches).
+
   * Anyways, what’s the deal?
 
     GHCJS is tricky to build, in particular in Travis (limited build time, old
