@@ -1,0 +1,29 @@
+name: ghcjs2-ghpages
+version: 0.1
+cabal-version: >=1.24
+build-type: Simple
+license: MIT
+license-file: LICENSE
+copyright: Joachim Breitner
+author: Joachim Breitner
+maintainer: Joachim Breitner <mail@joachim-breitner.de>
+homepage: https://github.com/nomeata/ghcjs2-ghpages
+bug-reports: https://github.com/nomeata/ghcjs2-ghpages/issues
+synopsis: Deploy ghcjs to github pages
+description:
+  This is an example repository setup to deploy ghcjs programs
+  to GitHub. The main thing to steal is the .travis.yml file, but
+  you can of course start by cloning this repository
+
+source-repository head
+    type: git
+    location: https://github.com/nomeata/ghcjs2-ghpages
+
+executable ghcjs2gh-pages
+    main-is: Main.hs
+    build-depends: base >=4.2 && <5
+    build-depends: ghcjs-dom >=0.9.0.0 && <0.10
+    build-depends: circle-packing == 0.1.*
+    build-depends: transformers
+    build-depends: mtl
+    ghc-options: -threaded -rtsopts
