@@ -32,6 +32,9 @@ before_install:
     - export PATH=/opt/ghc/bin:$PATH
     - export PATH=$TRAVIS_BUILD_DIR/node_modules/.bin:$PATH
     - du -sh $HOME/.ghcjs $HOME/.ghc $HOME/.cabal/bin $HOME/.cabal/lib $HOME/.cabal/share
+    - fgrep ghcjs-overlay ~/.cabal.config ||
+      echo -e "repository ghcjs-overlay\n url: http://hackage-ghcjs-overlay.nomeata.de\n secure: True\n root-keys:\n key-threshold: 0" >> ~/.cabal/config
+    - cat ~/.cabal/config
     - cabal update
 
 jobs:
@@ -82,17 +85,6 @@ jobs:
       - cd ..; pwd
       - ln -sf /usr/bin/gcc-6 $HOME/.cabal/bin/gcc
       - test -e $HOME/.ghcjs/*/ghcjs/ghcjs_boot.completed || ghcjs-boot --no-haddock --no-prof
-     script:
-       - ghcjs-pkg list
-
-   # needed due to https://github.com/ghcjs/ghcjs-base/issues/81
-   - stage: install ghcjs-base (ghcjs)
-     install:
-       - cabal --version
-       - 'ghcjs-pkg list ghcjs-base | grep -q ghcjs-base ||
-         { git clone https://github.com/ghcjs/ghcjs-base &&
-           cabal install -j1 --ghcjs --constraint="primitive < 0.6.4.0" ./ghcjs-base;
-         }'
      script:
        - ghcjs-pkg list
 
