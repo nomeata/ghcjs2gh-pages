@@ -15,7 +15,12 @@ HOWTO
    (e.g. <https://travis-ci.org/nomeata/ghcjs2gh-pages/settings>). Enable
    Travis, if not done yet. Under “Environment Variables”, store the personal
    access token from above, with name `GITHUB_TOKEN`.
-4. Push and wait.
+4. Trigger a build on Travis (top-right corner, “More Options” – “Trigger Build”).
+   The (multiple) stages that install GHCJS and dependencies will only run when
+   you trigger a build this way, but not on a normal push. This way, normal
+   pushes are built much faster, as they do not have to go through all the
+   cache-warming steps.
+5. Wait.
 
 If everything works, you will be using your GHCJS program on the Github Page
 URL for this project, e.g. <http://nomeata.github.io/ghcjs2gh-pages>.
@@ -33,10 +38,16 @@ FAQ
     are bad tool, but to make this accessible to as many developers as
     possible. But ideally, it should not matter what happens on Travis.
 
-  * Why so many stages? This makes the build very slow!
+  * Why do I have to trigger the push manually?
 
-    The initial bootstrapping needs to be split into multiple stages to fit
-    into Travis time constraints. But improvements are welcome!
+    The initial bootstrapping takes a lot of time, and needs to be split into
+    multiple stages to fit into Travis time constraints. If we would run these
+    stages on every step, every build would be pretty slow – even if the stages
+    don’t actually do anything, just installing the apt packages and loading
+    the cache takes many minutes for each stage.
+
+    We avoid this by running these stages *only* you determine that you need
+    them.
 
   * What is this http://hackage-ghcjs-overlay.nomeata.de/ hackage source?
 
