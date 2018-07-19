@@ -38,12 +38,10 @@ FAQ
     The initial bootstrapping needs to be split into multiple stages to fit
     into Travis time constraints. But improvements are welcome!
 
-  * What is this `ghcjs-base` stage for?
+  * What is this http://hackage-ghcjs-overlay.nomeata.de/ hackage source?
 
-    `ghcjs-base` is no longer shipped as a boot library by GHCJS, but it is
-    also not on Hackage. Until this is fixed, I tried this soluison.
-
-    [not on Hackage]: https://github.com/ghcjs/ghcjs-base/issues/81
+    Some important GHCJS-related packages are not (yet) on hackage. Until that is
+    the case, I uploaded them to an overlay repository.
 
   * Is the example program in this repository a good example of idiomatic
     `ghcjs-dom` use?
