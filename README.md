@@ -46,8 +46,8 @@ FAQ
     don’t actually do anything, just installing the apt packages and loading
     the cache takes many minutes for each stage.
 
-    We avoid this by running these stages *only* you determine that you need
-    them.
+    We avoid this by running these stages *only* when you determine that you
+    need them.
 
   * What is this http://hackage-ghcjs-overlay.nomeata.de/ hackage source?
 
