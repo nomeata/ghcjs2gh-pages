@@ -37,7 +37,9 @@ before_install:
     - cabal update
 
 jobs:
-   - stage: install program dependencies (ghcjs)
+  include:
+   - stage: warm cache with program dependencies
+     if: type = api
      install:
        - cabal --version
        - cabal install -j1 --ghcjs -w ghcjs-8.2 --dependencies-only --disable-tests --constraint="primitive < 0.6.4.0"
