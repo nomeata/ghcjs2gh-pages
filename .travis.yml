@@ -2,6 +2,17 @@ sudo: true
 dist: trusty
 language: generic
 
+addons:
+  apt:
+    sources:
+    - hvr-ghc
+    - sourceline: 'ppa:hvr/ghcjs'
+    - ubuntu-toolchain-r-test
+    packages:
+    - cabal-install-2.2
+    - ghcjs-8.2
+    - gcc-6
+
 cache:
   bundler: false
   directories:
@@ -11,12 +22,6 @@ cache:
   - $HOME/.cabal/share
   - $HOME/.cabal/lib
   - $HOME/.cabal/libexec
-
-before_install:
-  - sudo add-apt-repository ppa:hvr/ghc -y
-  - sudo add-apt-repository ppa:hvr/ghcjs -y
-  - sudo apt-get update -q
-  - sudo apt-get install -y cabal-install-2.2 ghcjs-8.2
 
 before_install:
     - export PATH=$HOME/.cabal/bin:$PATH
