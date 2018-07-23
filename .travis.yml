@@ -43,8 +43,8 @@ before_install:
 install:
     # lets see what we will do
     - cabal install --dry-run -j1 --ghcjs -w ghcjs-8.2 --dependencies-only --disable-tests --constraint="primitive < 0.6.4.0"
-    # lets do it
-    - cabal install -j1 --ghcjs -w ghcjs-8.2 --dependencies-only --disable-tests --constraint="primitive < 0.6.4.0"
+    # lets do it (and do not fail here, so that partial builds still warm the cache)
+    - cabal install -j1 --ghcjs -w ghcjs-8.2 --dependencies-only --disable-tests --constraint="primitive < 0.6.4.0" || true
 
 jobs:
   include:
