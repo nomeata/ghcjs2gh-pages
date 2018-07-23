@@ -59,9 +59,10 @@ jobs:
        # now build
        - cabal configure --distdir=dist-ghcjs --ghcjs -w ghcjs-8.2 --disable-library-profiling
        - cabal build     --distdir=dist-ghcjs
-       - cabal haddock   --distdir=dist-ghcjs --executables --internal --hyperlink-source
        - cp -vr dist-ghcjs/build/*/*.jsexe gh-page
-       - cp -vr dist-ghcjs/doc/html/*/* gh-page/doc
+       # Disable haddock temporarily
+       # - cabal haddock   --distdir=dist-ghcjs --executables --internal --hyperlink-source
+       # - cp -vr dist-ghcjs/doc/html/*/* gh-page/doc
 
      deploy:
        provider: pages
