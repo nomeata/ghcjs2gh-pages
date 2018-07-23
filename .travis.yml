@@ -1,9 +1,6 @@
 sudo: required
 dist: trusty
-
-language: node_js
-node_js:
-  - "10"
+language: generic
 
 addons:
   apt:
@@ -11,6 +8,8 @@ addons:
     - hvr-ghc
     - sourceline: 'ppa:hvr/ghcjs'
     - ubuntu-toolchain-r-test
+    - sourceline: 'deb https://deb.nodesource.com/node_10.x trusty main'
+      key_url: 'https://deb.nodesource.com/gpgkey/nodesource.gpg.key'
     packages:
     - cabal-install-2.2
     - ghcjs-8.2
