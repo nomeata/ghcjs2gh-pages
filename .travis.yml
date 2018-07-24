@@ -11,9 +11,10 @@ addons:
     - sourceline: 'deb https://deb.nodesource.com/node_6.x trusty main'
       key_url: 'https://deb.nodesource.com/gpgkey/nodesource.gpg.key'
     packages:
-    - cabal-install-2.2
+    - cabal-install-head
     - ghcjs-8.2
-    - gcc-6
+    - alex-3.1.4
+    - happy-1.19.5
 
 cache:
   bundler: false
@@ -24,15 +25,13 @@ cache:
   - $HOME/.cabal/share
   - $HOME/.cabal/lib
   - $HOME/.cabal/libexec
+  - $HOME/.cabal/store
 
 before_install:
     - export PATH=$HOME/.cabal/bin:$PATH
-    - export PATH=/opt/cabal/2.2/bin:$PATH
-    - export PATH=/opt/alex/3.1.4/bin:$PATH
-    - export PATH=/opt/happy/1.19.5/bin:$PATH
+    - export PATH=/opt/ghc/bin/bin:$PATH
     - export PATH=/opt/ghcjs/8.2/bin:$PATH
     - export PATH=$TRAVIS_BUILD_DIR/node_modules/.bin:$PATH
-    - du -sh $HOME/.ghcjs $HOME/.ghc $HOME/.cabal/bin $HOME/.cabal/lib $HOME/.cabal/share
     - rm -f ~/.cabal/config
     - cabal update # to ensure the config exists
     - 'fgrep hackage-ghcjs-overlay.nomeata.de/ $HOME/.cabal/config ||
@@ -41,10 +40,8 @@ before_install:
     - cabal update
 
 install:
-    # lets see what we will do
-    - cabal install --dry-run -j1 --ghcjs --dependencies-only --disable-tests --constraint="primitive < 0.6.4.0"
-    # lets do it (and do not fail here, so that partial builds still warm the cache)
-    - cabal install -j1 --ghcjs --dependencies-only --disable-tests --constraint="primitive < 0.6.4.0" || true
+    # do not fail here, so that partial builds still warm the cache)
+    - cabal new-build --ghcjs --dependencies-only --constraint="primitive < 0.6.4.0" || true
 
 jobs:
   include:
@@ -57,12 +54,10 @@ jobs:
    - stage: build, test and deploy
      script:
        # now build
-       - cabal configure --distdir=dist-ghcjs --ghcjs --disable-library-profiling
-       - cabal build     --distdir=dist-ghcjs
-       - cp -vr dist-ghcjs/build/*/*.jsexe gh-page
-       # Disable haddock temporarily
-       # - cabal haddock   --distdir=dist-ghcjs --executables --internal --hyperlink-source
-       # - cp -vr dist-ghcjs/doc/html/*/* gh-page/doc
+       - cabal new-build --ghcjs
+
+     before_deploy:
+       - cp -rv dist-newstyle/build/*/*/*/x/*/build/*/*.jsexe gh-page
 
      deploy:
        provider: pages
