@@ -1,14 +1,14 @@
 code size summary per package:
 
 base:                    436005
-circle-packing-0.1.0.6-EDwt63Kx6JhKhEudo3TXKt:3225
-ghc-prim:                18258
-ghcjs-base-0.2.0.0-3EKoPLVOycEIo8YBY9ERAb:2756
-ghcjs-dom-jsffi-0.9.2.0-As3bBqC5d7phyDOAeV4S:68089
+circle-packing-0.1.0.6-ec6913f5e0f0f44edbf0f93c55a92cca2b171b11a2bf14e431f76e23b5f3d761:3653
+ghc-prim:                18344
+ghcjs-base-0.2.0.0.20180719-f975047131e6eae7c9e75f4bf367d0e21663fb3eeef740ecfdb659e0f6e08985:3534
+ghcjs-dom-jsffi-0.9.2.0-d3aaf6541f63e38b44a8f1e65ed502e83acfbb45a05b9cb51d9d1ffaf670a9f9:76025
 ghcjs-prim-0.1.1.0-Lw1qzAJ9IR31NFzWC6t27Z:9205
 integer-gmp:             6587
 main:                    73087
-text-1.2.3.0-4mOERTuj4vO2yKqXmj0fXe:19127
+text-1.2.3.0-350ffb493e637f97d8ed29addb7af33c0a7e0a47cff2439e1c274e175cf4b2d6:20283
 
 
 code size per module:
@@ -71,28 +71,28 @@ base
     Text.Read:                          77218
     Text.Read.Lex:                      3870
 
-circle-packing-0.1.0.6-EDwt63Kx6JhKhEudo3TXKt
-    Optimisation.CirclePacking:         3225
+circle-packing-0.1.0.6-ec6913f5e0f0f44edbf0f93c55a92cca2b171b11a2bf14e431f76e23b5f3d761
+    Optimisation.CirclePacking:         3653
 
 ghc-prim
     GHC.CString:                        2911
     GHC.Classes:                        2617
     GHC.Tuple:                          2401
-    GHC.Types:                          10329
+    GHC.Types:                          10415
 
-ghcjs-base-0.2.0.0-3EKoPLVOycEIo8YBY9ERAb
-    GHCJS.Marshal:                      1251
-    GHCJS.Marshal.Internal:             1013
-    GHCJS.Marshal.Pure:                 492
+ghcjs-base-0.2.0.0.20180719-f975047131e6eae7c9e75f4bf367d0e21663fb3eeef740ecfdb659e0f6e08985
+    GHCJS.Marshal:                      1669
+    GHCJS.Marshal.Internal:             1329
+    GHCJS.Marshal.Pure:                 536
 
-ghcjs-dom-jsffi-0.9.2.0-As3bBqC5d7phyDOAeV4S
-    GHCJS.DOM:                          2067
-    GHCJS.DOM.EventM:                   474
-    GHCJS.DOM.JSFFI.Generated.GlobalEventHandlers:989
-    GHCJS.DOM.JSFFI.Generated.HTMLCanvasElement:971
-    GHCJS.DOM.JSFFI.Generated.HTMLCollection:1374
-    GHCJS.DOM.JSFFI.Generated.NonElementParentNode:61456
-    GHCJS.DOM.Types:                    758
+ghcjs-dom-jsffi-0.9.2.0-d3aaf6541f63e38b44a8f1e65ed502e83acfbb45a05b9cb51d9d1ffaf670a9f9
+    GHCJS.DOM:                          2301
+    GHCJS.DOM.EventM:                   562
+    GHCJS.DOM.JSFFI.Generated.GlobalEventHandlers:1077
+    GHCJS.DOM.JSFFI.Generated.HTMLCanvasElement:1059
+    GHCJS.DOM.JSFFI.Generated.HTMLCollection:1510
+    GHCJS.DOM.JSFFI.Generated.NonElementParentNode:68502
+    GHCJS.DOM.Types:                    1014
 
 ghcjs-prim-0.1.1.0-Lw1qzAJ9IR31NFzWC6t27Z
     GHCJS.Prim:                         3766
@@ -104,11 +104,11 @@ integer-gmp
 main
     Main:                               73087
 
-text-1.2.3.0-4mOERTuj4vO2yKqXmj0fXe
-    Data.Text.Array:                    1258
-    Data.Text.Internal:                 17869
+text-1.2.3.0-350ffb493e637f97d8ed29addb7af33c0a7e0a47cff2439e1c274e175cf4b2d6
+    Data.Text.Array:                    1558
+    Data.Text.Internal:                 18725
 
 
 
-packed metadata: 162793
+packed metadata: 176465
 
