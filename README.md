@@ -15,12 +15,7 @@ HOWTO
    (e.g. <https://travis-ci.org/nomeata/ghcjs2gh-pages/settings>). Enable
    Travis, if not done yet. Under “Environment Variables”, store the personal
    access token from above, with name `GITHUB_TOKEN`.
-4. Trigger a build on Travis (top-right corner, “More Options” – “Trigger Build”).
-   The (multiple) stages that install GHCJS and dependencies will only run when
-   you trigger a build this way, but not on a normal push. This way, normal
-   pushes are built much faster, as they do not have to go through all the
-   cache-warming steps.
-5. Wait.
+4. Wait.
 
 If everything works, you will be using your GHCJS program on the Github Page
 URL for this project, e.g. <http://nomeata.github.io/ghcjs2gh-pages>.
@@ -38,21 +33,18 @@ FAQ
     are bad tool, but to make this accessible to as many developers as
     possible. But ideally, it should not matter what happens on Travis.
 
-  * Why do I have to trigger the push manually?
+  * I have too many dependencies, and the build times out.
 
-    The initial bootstrapping takes a lot of time, and needs to be split into
-    multiple stages to fit into Travis time constraints. If we would run these
-    stages on every step, every build would be pretty slow – even if the stages
-    don’t actually do anything, just installing the apt packages and loading
-    the cache takes many minutes for each stage.
-
-    We avoid this by running these stages *only* when you determine that you
-    need them.
+    If you trigger a build via the Travis web UI (top-right corner, “More
+    Options” – “Trigger Build”), then travis will run an additional
+    cache-warming stage where it will only build dependencies. This might
+    help with the build. Let us know if this is still too slow, we have ideas.
 
   * What is this http://hackage-ghcjs-overlay.nomeata.de/ hackage source?
 
-    Some important GHCJS-related packages are not (yet) on hackage. Until that is
-    the case, I uploaded them to an overlay repository.
+    Some important GHCJS-related packages are not (yet) on hackage, including
+    `reflex` and `reflex-dom`. Until that is the case, I uploaded them to an
+    overlay repository.
 
   * Is the example program in this repository a good example of idiomatic
     `ghcjs-dom` use?
@@ -67,16 +59,10 @@ FAQ
     <https://help.github.com/articles/using-a-custom-domain-with-github-pages/>
     and set the domain name in the `fqdn` field in `.travis.yaml`.
 
-  * I changed something in `.travis.yaml`, but it does not seem to have an
-    effect?
-
-    You might have to [clear the Travis cache](https://docs.travis-ci.com/user/caching/#Clearing-Caches).
-
   * Anyways, what’s the deal?
 
-    GHCJS is tricky to build, in particular in Travis (limited build time, old
-    version of things like `gcc` and `tar`). There are some crude hacks to work
-    around this.
+    GHCJS is tricky to build, but thanks to [hvr’s GHCJS
+    PPA](https://launchpad.net/~hvr/+archive/ubuntu/ghcjs) the pain is lessend.
 
   * Why `--constraint="primitive < 0.6.4.0`?
 
@@ -91,19 +77,11 @@ Possible improvements (patches welcome!)
    the program, and/or data files that need to be available to the browser, in
    a way that works both locally (with GHC) and remotely (with GHCJS).
 
- * Fix the specific version of `ghcjs`, for reproducibility.
-   Unfortunately, <http://ghcjs.luite.com/> does not provide snapshorts for the
-   8.2 branch.
-
  * Clean up `Main.hs` (see question above).
 
  * Also build the program using regular GHC on travis, to see if that works.
 
  * Build the test suite, if present, and only deploy if it passes.
-
- * Convince the GHCJS maintainers to make a proper release, and then convince
-   @hvr to put GHCJS on <https://launchpad.net/~hvr/+archive/ubuntu/ghc> and
-   get rid of most of stuff in this file.
 
 Contact
 -------
