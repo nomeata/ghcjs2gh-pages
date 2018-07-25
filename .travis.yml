@@ -36,7 +36,6 @@ before_install:
     - cabal update # to ensure the config exists
     - 'fgrep hackage-ghcjs-overlay.nomeata.de/ $HOME/.cabal/config ||
       echo -e "repository ghcjs-overlay\n url: http://hackage-ghcjs-overlay.nomeata.de/\n secure: True\n root-keys:\n key-threshold: 0\n" >> ~/.cabal/config'
-    - 'echo "constraints: primitive < 0.6.4.0" >> ~/.cabal/config'
     - cat ~/.cabal/config
     - cabal update
 
@@ -55,7 +54,7 @@ jobs:
    - stage: build, test and deploy
      script:
        # now build
-       - cabal new-build --ghcjs
+       - cabal new-build --ghcjs --constraint="primitive < 0.6.4.0" 
 
      before_deploy:
        - cp -rv dist-newstyle/build/*/*/*/x/*/build/*/*.jsexe gh-page
