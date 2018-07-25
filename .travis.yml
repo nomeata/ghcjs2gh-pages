@@ -29,7 +29,7 @@ cache:
 
 before_install:
     - export PATH=$HOME/.cabal/bin:$PATH
-    - export PATH=/opt/ghc/bin/bin:$PATH
+    - export PATH=/opt/ghc/bin:$PATH
     - export PATH=/opt/ghcjs/8.2/bin:$PATH
     - export PATH=$TRAVIS_BUILD_DIR/node_modules/.bin:$PATH
     - rm -f ~/.cabal/config
