@@ -20,9 +20,6 @@ HOWTO
 If everything works, you will be using your GHCJS program on the Github Page
 URL for this project, e.g. <http://nomeata.github.io/ghcjs2gh-pages>.
 
-As a bonus, the haddocks of the project will be on
-<http://nomeata.github.io/ghcjs2gh-pages/doc>.
-
 
 FAQ
 ---
