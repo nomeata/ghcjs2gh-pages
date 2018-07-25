@@ -35,7 +35,8 @@ before_install:
     - rm -f ~/.cabal/config
     - cabal update # to ensure the config exists
     - 'fgrep hackage-ghcjs-overlay.nomeata.de/ $HOME/.cabal/config ||
-      echo -e "repository ghcjs-overlay\n url: http://hackage-ghcjs-overlay.nomeata.de/\n secure: True\n root-keys:\n key-threshold: 0" >> ~/.cabal/config'
+      echo -e "repository ghcjs-overlay\n url: http://hackage-ghcjs-overlay.nomeata.de/\n secure: True\n root-keys:\n key-threshold: 0\n" >> ~/.cabal/config'
+    - 'echo "constraints: primitive < 0.6.4.0" >> ~/.cabal/config'
     - cat ~/.cabal/config
     - cabal update
 
