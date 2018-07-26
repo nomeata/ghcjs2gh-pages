@@ -1,5 +1,4 @@
 packages: .
--- needed for ghcjs, but breaks ghc
-optional-packages: /home/jojo/build/haskell/ghcjs-base/ghcjs-base.cabal
 
+constraints: primitive < 0.6.4.0
 
