@@ -3,12 +3,12 @@ code size summary per package:
 base:                    436005
 circle-packing-0.1.0.6-ec6913f5e0f0f44edbf0f93c55a92cca2b171b11a2bf14e431f76e23b5f3d761:3653
 ghc-prim:                18344
-ghcjs-base-0.2.0.0.20180719-f975047131e6eae7c9e75f4bf367d0e21663fb3eeef740ecfdb659e0f6e08985:3534
-ghcjs-dom-jsffi-0.9.2.0-d3aaf6541f63e38b44a8f1e65ed502e83acfbb45a05b9cb51d9d1ffaf670a9f9:76025
+ghcjs-base-0.2.0.0.20180719-05c28c348a1c0ede1059cff501e4d4f1b774580584d212e0a12882618554b62c:3534
+ghcjs-dom-jsffi-0.9.2.0-0691c2dca13889403666a353d5acdab52a6c4c3216c5a8b79aa68391d78db46b:76025
 ghcjs-prim-0.1.1.0-Lw1qzAJ9IR31NFzWC6t27Z:9205
 integer-gmp:             6587
 main:                    73087
-text-1.2.3.0-350ffb493e637f97d8ed29addb7af33c0a7e0a47cff2439e1c274e175cf4b2d6:20283
+text-1.2.3.1-afd15fc79d64d6e685f5eda855d64b7c8b6187ca015eb6e9ef1dfb88a0e2d9d4:20283
 
 
 code size per module:
@@ -80,12 +80,12 @@ ghc-prim
     GHC.Tuple:                          2401
     GHC.Types:                          10415
 
-ghcjs-base-0.2.0.0.20180719-f975047131e6eae7c9e75f4bf367d0e21663fb3eeef740ecfdb659e0f6e08985
+ghcjs-base-0.2.0.0.20180719-05c28c348a1c0ede1059cff501e4d4f1b774580584d212e0a12882618554b62c
     GHCJS.Marshal:                      1669
     GHCJS.Marshal.Internal:             1329
     GHCJS.Marshal.Pure:                 536
 
-ghcjs-dom-jsffi-0.9.2.0-d3aaf6541f63e38b44a8f1e65ed502e83acfbb45a05b9cb51d9d1ffaf670a9f9
+ghcjs-dom-jsffi-0.9.2.0-0691c2dca13889403666a353d5acdab52a6c4c3216c5a8b79aa68391d78db46b
     GHCJS.DOM:                          2301
     GHCJS.DOM.EventM:                   562
     GHCJS.DOM.JSFFI.Generated.GlobalEventHandlers:1077
@@ -104,7 +104,7 @@ integer-gmp
 main
     Main:                               73087
 
-text-1.2.3.0-350ffb493e637f97d8ed29addb7af33c0a7e0a47cff2439e1c274e175cf4b2d6
+text-1.2.3.1-afd15fc79d64d6e685f5eda855d64b7c8b6187ca015eb6e9ef1dfb88a0e2d9d4
     Data.Text.Array:                    1558
     Data.Text.Internal:                 18725
 
