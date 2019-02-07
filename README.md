@@ -37,12 +37,6 @@ FAQ
     cache-warming stage where it will only build dependencies. This might
     help with the build. Let us know if this is still too slow, we have ideas.
 
-  * What is this http://hackage-ghcjs-overlay.nomeata.de/ hackage source?
-
-    Some important GHCJS-related packages are not (yet) on hackage, including
-    `ghcjs-base`. Until that is the case, I uploaded them to an overlay
-    repository.
-
   * Is the example program in this repository a good example of idiomatic
     `ghcjs-dom` use?
 
