@@ -4150,7 +4150,7 @@ if(String.prototype.codePointAt) {
  if(l===0) return -1;
  var ch = str.charCodeAt(0);
  if(((ch|1023)===0xDBFF)) {
-     return (l>1) ? ((((ch)-0xD800)<<10)+(str.charCodeAt(1))-9216) : -1;
+     return (l>1) ? ((((ch)-0xD800)<<10)+(str.charCodeAt(1))-0xDC00+0x10000) : -1;
  } else {
      return ch;
  }
@@ -4184,7 +4184,7 @@ if(String.prototype.codePointAt) {
  var ch = str.charCodeAt(0);
  if(((ch|1023)===0xDBFF)) {
    if(l > 1) {
-        { h$ret1 = (str.substr(2)); return (((((ch)-0xD800)<<10)+(str.charCodeAt(1))-9216)); };
+        { h$ret1 = (str.substr(2)); return (((((ch)-0xD800)<<10)+(str.charCodeAt(1))-0xDC00+0x10000)); };
    } else {
        { h$ret1 = (null); return (-1); };
    }
@@ -4197,12 +4197,12 @@ if(String.prototype.codePointAt) {
         // TRACE_JSSTRING("(no codePointAt) index: " + i + " '" + str + "'");
  var ch = str.charCodeAt(i);
  if(ch != ch) return -1; // NaN test
- return (((ch|1023)===0xDBFF)) ? ((((ch)-0xD800)<<10)+(str.charCodeAt(i+1))-9216) : ch;
+ return (((ch|1023)===0xDBFF)) ? ((((ch)-0xD800)<<10)+(str.charCodeAt(i+1))-0xDC00+0x10000) : ch;
     }
     h$jsstringUncheckedIndex = function(i, str) {
         ;
  var ch = str.charCodeAt(i);
- return (((ch|1023)===0xDBFF)) ? ((((ch)-0xD800)<<10)+(str.charCodeAt(i+1))-9216) : ch;
+ return (((ch|1023)===0xDBFF)) ? ((((ch)-0xD800)<<10)+(str.charCodeAt(i+1))-0xDC00+0x10000) : ch;
     }
 }
 function h$jsstringUnsnoc(str) {
@@ -4214,7 +4214,7 @@ function h$jsstringUnsnoc(str) {
   var ch = str.charCodeAt(l-1);
   if(((ch|1023)===0xDFFF)) {
     if(l !== 1) {
-      { h$ret1 = (str.substr(0,l-2)); return (((((str.charCodeAt(l-2))-0xD800)<<10)+(ch)-9216)); };
+      { h$ret1 = (str.substr(0,l-2)); return (((((str.charCodeAt(l-2))-0xD800)<<10)+(ch)-0xDC00+0x10000)); };
     } else {
       { h$ret1 = (null); return (-1); };
     }
@@ -4284,7 +4284,7 @@ function h$jsstringLast(str) {
     if(l===0) return -1;
     var ch = str.charCodeAt(l-1);
     if(((ch|1023)===0xDFFF)) {
- return (l>1) ? ((((str.charCodeAt(l-2))-0xD800)<<10)+(ch)-9216) : -1;
+ return (l>1) ? ((((str.charCodeAt(l-2))-0xD800)<<10)+(ch)-0xDC00+0x10000) : -1;
     } else return ch;
 }
 // index is the last part of the character
@@ -4292,7 +4292,7 @@ function h$jsstringIndexR(i, str) {
     ;
     if(i < 0 || i > str.length) return -1;
     var ch = str.charCodeAt(i);
-    return (((ch|1023)===0xDFFF)) ? ((((str.charCodeAt(i-1))-0xD800)<<10)+(ch)-9216) : ch;
+    return (((ch|1023)===0xDFFF)) ? ((((str.charCodeAt(i-1))-0xD800)<<10)+(ch)-0xDC00+0x10000) : ch;
 }
 function h$jsstringNextIndex(i, str) {
     ;
@@ -4318,7 +4318,7 @@ function h$jsstringDrop(n, str) {
     while(n--) {
  ch = str.charCodeAt(i++);
  if(((ch|1023)===0xDBFF)) i++;
- if(i >= l) return str;
+ if(i >= l) return '';
     }
     return str.substr(i);
 }
@@ -4375,12 +4375,8 @@ function h$jsstringIntersperse(ch, ys) {
     ;
     var i = 0, l = ys.length, j = 0, a = [], ych;
     if(((ch)>=0x10000)) {
- var ch1 = ((((ch)-0x10000)>>>10)+0xDC00), ch2 = (((ch)&0x3FF)+0xD800);
  while(j < l) {
-     if(i) {
-  a[i++] = ch1;
-  a[i++] = ch2;
-     }
+     if(i) a[i++] = ch;
      ych = ys.charCodeAt(j++);
      a[i++] = ych;
      if(((ych|1023)===0xDBFF)) a[i++] = ys.charCodeAt(j++);
@@ -4652,12 +4648,12 @@ function h$jsstringGroup(x) {
     if(xl === 0) return h$ghczmprimZCGHCziTypesziZMZN;
     var i = xl-1, si, ch, s=xl, r=h$ghczmprimZCGHCziTypesziZMZN;
     var tch = x.charCodeAt(i--);
-    if(((tch|1023)===0xDFFF)) tch = ((((x.charCodeAt(i--))-0xD800)<<10)+(tch)-9216);
+    if(((tch|1023)===0xDFFF)) tch = ((((x.charCodeAt(i--))-0xD800)<<10)+(tch)-0xDC00+0x10000);
     while(i >= 0) {
  si = i;
  ch = x.charCodeAt(i--);
  if(((ch|1023)===0xDFFF)) {
-     ch = ((((x.charCodeAt(i--))-0xD800)<<10)+(ch)-9216);
+     ch = ((((x.charCodeAt(i--))-0xD800)<<10)+(ch)-0xDC00+0x10000);
  }
  if(ch != tch) {
      tch = ch;
@@ -4671,9 +4667,10 @@ function h$jsstringChunksOf1(n, s, x) {
     ;
     var m = s, c = 0, l = x.length, ch;
     if(n <= 0 || l === 0 || s >= l) return -1
-    while(++m < l && ++c < n) {
- ch = x.charCodeAt(m);
- if(((ch|1023)===0xDBFF)) ++m;
+    while(++m < l) {
+        ch = x.charCodeAt(m - 1);
+        if(((ch|1023)===0xDBFF)) ++m;
+        if(++c >= n) break;
     }
     var r1 = (m >= l && s === c) ? x : x.substr(s,m-s);
     { h$ret1 = (r1); return (m); };
@@ -4751,7 +4748,7 @@ function h$jsstringUnpack(str) {
     var r = h$ghczmprimZCGHCziTypesziZMZN, i = str.length-1, c;
     while(i >= 0) {
  c = str.charCodeAt(i--);
- if(((c|1023)===0xDFFF)) c = ((((str.charCodeAt(i--))-0xD800)<<10)+(c)-9216)
+ if(((c|1023)===0xDFFF)) c = ((((str.charCodeAt(i--))-0xD800)<<10)+(c)-0xDC00+0x10000)
  r = (h$c2(h$ghczmprimZCGHCziTypesziZC_con_e, (c), (r)));
     }
     return r;
@@ -5968,7 +5965,7 @@ if(String.prototype.codePointAt) {
  if(l===0) return -1;
  var ch = str.charCodeAt(0);
  if(((ch|1023)===0xDBFF)) {
-     return (l>1) ? ((((ch)-0xD800)<<10)+(str.charCodeAt(1))-9216) : -1;
+     return (l>1) ? ((((ch)-0xD800)<<10)+(str.charCodeAt(1))-0xDC00+0x10000) : -1;
  } else {
      return ch;
  }
@@ -6002,7 +5999,7 @@ if(String.prototype.codePointAt) {
  var ch = str.charCodeAt(0);
  if(((ch|1023)===0xDBFF)) {
    if(l > 1) {
-        { h$ret1 = (str.substr(2)); return (((((ch)-0xD800)<<10)+(str.charCodeAt(1))-9216)); };
+        { h$ret1 = (str.substr(2)); return (((((ch)-0xD800)<<10)+(str.charCodeAt(1))-0xDC00+0x10000)); };
    } else {
        { h$ret1 = (null); return (-1); };
    }
@@ -6015,12 +6012,12 @@ if(String.prototype.codePointAt) {
         // TRACE_JSSTRING("(no codePointAt) index: " + i + " '" + str + "'");
  var ch = str.charCodeAt(i);
  if(ch != ch) return -1; // NaN test
- return (((ch|1023)===0xDBFF)) ? ((((ch)-0xD800)<<10)+(str.charCodeAt(i+1))-9216) : ch;
+ return (((ch|1023)===0xDBFF)) ? ((((ch)-0xD800)<<10)+(str.charCodeAt(i+1))-0xDC00+0x10000) : ch;
     }
     h$jsstringUncheckedIndex = function(i, str) {
         ;
  var ch = str.charCodeAt(i);
- return (((ch|1023)===0xDBFF)) ? ((((ch)-0xD800)<<10)+(str.charCodeAt(i+1))-9216) : ch;
+ return (((ch|1023)===0xDBFF)) ? ((((ch)-0xD800)<<10)+(str.charCodeAt(i+1))-0xDC00+0x10000) : ch;
     }
 }
 function h$jsstringUnsnoc(str) {
@@ -6032,7 +6029,7 @@ function h$jsstringUnsnoc(str) {
   var ch = str.charCodeAt(l-1);
   if(((ch|1023)===0xDFFF)) {
     if(l !== 1) {
-      { h$ret1 = (str.substr(0,l-2)); return (((((str.charCodeAt(l-2))-0xD800)<<10)+(ch)-9216)); };
+      { h$ret1 = (str.substr(0,l-2)); return (((((str.charCodeAt(l-2))-0xD800)<<10)+(ch)-0xDC00+0x10000)); };
     } else {
       { h$ret1 = (null); return (-1); };
     }
@@ -6102,7 +6099,7 @@ function h$jsstringLast(str) {
     if(l===0) return -1;
     var ch = str.charCodeAt(l-1);
     if(((ch|1023)===0xDFFF)) {
- return (l>1) ? ((((str.charCodeAt(l-2))-0xD800)<<10)+(ch)-9216) : -1;
+ return (l>1) ? ((((str.charCodeAt(l-2))-0xD800)<<10)+(ch)-0xDC00+0x10000) : -1;
     } else return ch;
 }
 // index is the last part of the character
@@ -6110,7 +6107,7 @@ function h$jsstringIndexR(i, str) {
     ;
     if(i < 0 || i > str.length) return -1;
     var ch = str.charCodeAt(i);
-    return (((ch|1023)===0xDFFF)) ? ((((str.charCodeAt(i-1))-0xD800)<<10)+(ch)-9216) : ch;
+    return (((ch|1023)===0xDFFF)) ? ((((str.charCodeAt(i-1))-0xD800)<<10)+(ch)-0xDC00+0x10000) : ch;
 }
 function h$jsstringNextIndex(i, str) {
     ;
@@ -6136,7 +6133,7 @@ function h$jsstringDrop(n, str) {
     while(n--) {
  ch = str.charCodeAt(i++);
  if(((ch|1023)===0xDBFF)) i++;
- if(i >= l) return str;
+ if(i >= l) return '';
     }
     return str.substr(i);
 }
@@ -6193,12 +6190,8 @@ function h$jsstringIntersperse(ch, ys) {
     ;
     var i = 0, l = ys.length, j = 0, a = [], ych;
     if(((ch)>=0x10000)) {
- var ch1 = ((((ch)-0x10000)>>>10)+0xDC00), ch2 = (((ch)&0x3FF)+0xD800);
  while(j < l) {
-     if(i) {
-  a[i++] = ch1;
-  a[i++] = ch2;
-     }
+     if(i) a[i++] = ch;
      ych = ys.charCodeAt(j++);
      a[i++] = ych;
      if(((ych|1023)===0xDBFF)) a[i++] = ys.charCodeAt(j++);
@@ -6470,12 +6463,12 @@ function h$jsstringGroup(x) {
     if(xl === 0) return h$ghczmprimZCGHCziTypesziZMZN;
     var i = xl-1, si, ch, s=xl, r=h$ghczmprimZCGHCziTypesziZMZN;
     var tch = x.charCodeAt(i--);
-    if(((tch|1023)===0xDFFF)) tch = ((((x.charCodeAt(i--))-0xD800)<<10)+(tch)-9216);
+    if(((tch|1023)===0xDFFF)) tch = ((((x.charCodeAt(i--))-0xD800)<<10)+(tch)-0xDC00+0x10000);
     while(i >= 0) {
  si = i;
  ch = x.charCodeAt(i--);
  if(((ch|1023)===0xDFFF)) {
-     ch = ((((x.charCodeAt(i--))-0xD800)<<10)+(ch)-9216);
+     ch = ((((x.charCodeAt(i--))-0xD800)<<10)+(ch)-0xDC00+0x10000);
  }
  if(ch != tch) {
      tch = ch;
@@ -6489,9 +6482,10 @@ function h$jsstringChunksOf1(n, s, x) {
     ;
     var m = s, c = 0, l = x.length, ch;
     if(n <= 0 || l === 0 || s >= l) return -1
-    while(++m < l && ++c < n) {
- ch = x.charCodeAt(m);
- if(((ch|1023)===0xDBFF)) ++m;
+    while(++m < l) {
+        ch = x.charCodeAt(m - 1);
+        if(((ch|1023)===0xDBFF)) ++m;
+        if(++c >= n) break;
     }
     var r1 = (m >= l && s === c) ? x : x.substr(s,m-s);
     { h$ret1 = (r1); return (m); };
@@ -6569,7 +6563,7 @@ function h$jsstringUnpack(str) {
     var r = h$ghczmprimZCGHCziTypesziZMZN, i = str.length-1, c;
     while(i >= 0) {
  c = str.charCodeAt(i--);
- if(((c|1023)===0xDFFF)) c = ((((str.charCodeAt(i--))-0xD800)<<10)+(c)-9216)
+ if(((c|1023)===0xDFFF)) c = ((((str.charCodeAt(i--))-0xD800)<<10)+(c)-0xDC00+0x10000)
  r = (h$c2(h$ghczmprimZCGHCziTypesziZC_con_e, (c), (r)));
     }
     return r;
