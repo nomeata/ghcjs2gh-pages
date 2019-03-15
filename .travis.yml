@@ -12,8 +12,8 @@ addons:
       key_url: 'https://deb.nodesource.com/gpgkey/nodesource.gpg.key'
     packages:
     - cabal-install-head
-    - ghcjs-8.2
-    - alex-3.1.4
+    - ghcjs-8.4
+    - alex-3.1.7
     - happy-1.19.5
 
 cache:
@@ -30,9 +30,9 @@ cache:
 before_install:
     - export PATH=$HOME/.cabal/bin:$PATH
     - export PATH=/opt/ghc/bin:$PATH
-    - export PATH=/opt/alex/3.1.4/bin:$PATH
+    - export PATH=/opt/alex/3.1.7/bin:$PATH
     - export PATH=/opt/happy/1.19.5/bin:$PATH
-    - export PATH=/opt/ghcjs/8.2/bin:$PATH
+    - export PATH=/opt/ghcjs/8.4/bin:$PATH
     - export PATH=$TRAVIS_BUILD_DIR/node_modules/.bin:$PATH
     - rm -f ~/.cabal/config
     - cabal update # to ensure the config exists
@@ -70,4 +70,3 @@ jobs:
 before_cache:
   - rm -rf $HOME/.ghcjs/*/ghcjs/ghcjs-boot/
   - du -sh $HOME/.ghcjs $HOME/.ghc $HOME/.cabal/bin $HOME/.cabal/lib $HOME/.cabal/config $HOME/.cabal/share
-
