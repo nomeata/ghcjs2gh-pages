@@ -3882,18 +3882,6 @@ function h$scheduleInit(entries, objs, lbls, infos, statics) {
         h$initInfoTables(d, entries, objs, lbls, infos, statics);
     });
 }
-function h$runInitStatic() {
-    if(h$initStatic.length > 0) {
-        for(var i=h$initStatic.length - 1;i>=0;i--) {
-            h$initStatic[i]();
-        }
-        h$initStatic = [];
-    }
-    // free the references to the temporary tables used for
-    // initialising all our static data
-    h$entriesStack = null;
-    h$staticsStack = null;
-}
 // initialize packed info tables
 // see Gen2.Compactor for how the data is encoded
 function h$initInfoTables ( depth // depth in the base chain
@@ -4653,8 +4641,18 @@ function h$setField(o,n,v) {
         o.d2.d107 = v;
         return;
     default:
-        throw ("h$setField: setter not implemented for field: " + n);
+        o.d2["d"+n] = v; // this requires all.js.externs for closure compiler!
     }
+}
+function h$mkSelThunk(r, f, rf) {
+  var sn = h$makeStableName(r);
+  var res = h$c2(f, r, rf);
+  if(sn.sel) {
+    sn.sel.push(res);
+  } else {
+    sn.sel = [res];
+  }
+  return res;
 }
 function h$mkExportDyn(t, f) {
     h$log("making dynamic export: " + t);
@@ -4705,6 +4703,49 @@ function h$newByteArray(len) {
          , f6: new Float64Array(buf)
          , dv: new DataView(buf)
          }
+}
+function h$resizeMutableByteArray(a, n) {
+  var r;
+  if(a.len == n) {
+    r = a;
+  } else {
+    r = h$newByteArray(n);
+    for(var i = n - 1; i >= 0; i--) {
+      r.u8[i] = a.u8[i];
+    }
+  }
+  return r
+}
+/*
+  This implementation does not perform in-place shrinking of the byte array.
+  It only reuses the original byte array if the new given length is exactly
+  equal to old length. This implementation matches the expected semantics
+  for this primitive, but it is probably possible to make this more efficient.
+ */
+function h$shrinkMutableByteArray(a, n) {
+  if(a.len !== n) {
+    var r = h$newByteArray(n);
+    for(var i = n - 1; i >= 0; i--) {
+      r.u8[i] = a.u8[i];
+    }
+    a.buf = r.buf;
+    a.len = r.len;
+    a.i3 = r.i3;
+    a.u8 = r.u8;
+    a.u1 = r.u1;
+    a.f3 = r.f3;
+    a.f6 = r.f6;
+    a.dv = r.dv;
+  }
+}
+function h$compareByteArrays(a1,o1,a2,o2,n) {
+  for(var i = 0; i < n; i++) {
+    var x = a1.u8[i + o1];
+    var y = a2.u8[i + o2];
+    if(x < y) return -1;
+    if(x > y) return 1;
+  }
+  return 0;
 }
 /*
   Unboxed arrays in GHC use the ByteArray# and MutableByteArray#
@@ -4785,9 +4826,16 @@ var h$stableNameN = 1;
 function h$StableName(m) {
   this.m = m;
   this.s = null;
+  this.sel = null;
 }
+var h$stableName_false = new h$StableName(0);
+var h$stableName_true = new h$StableName(0);
 function h$makeStableName(x) {
-  if(typeof x === 'number') {
+  if(x === false) {
+    return h$stableName_false;
+  } else if(x === true) {
+    return h$stableName_true;
+  } else if(typeof x === 'number') {
     return x;
   } else if(((typeof(x)==='object')&&(x).f === h$unbox_e)) {
     return ((typeof(x) === 'number')?(x):(x).d1);
@@ -4818,13 +4866,6 @@ function h$stableNameInt(s) {
 function h$eqStableName(s1o,s2o) {
   if(s1o!=s1o && s2o!=s2o) return 1; // NaN
   return s1o === s2o ? 1 : 0;
-}
-function h$makeStablePtr(v) {
-  var buf = h$newByteArray(4);
-  buf.arr = [v];
-  { h$ret1 = (0); return (buf); };
-}
-function h$hs_free_stable_ptr(stable) {
 }
 function h$malloc(n) {
   { h$ret1 = (0); return (h$newByteArray(n)); };
@@ -4882,6 +4923,9 @@ var h$freeHaskellFunctionPtr = function () {
 // extra roots for the heap scanner: objects with root property
 var h$extraRootsN = 0;
 var h$extraRoots = new h$Set();
+function h$addExtraRoot() {
+  // fixme
+}
 function h$makeCallback(f, extraArgs, action) {
     var args = extraArgs.slice(0);
     args.unshift(action);
@@ -5283,6 +5327,10 @@ function h$gc(t) {
     ;
     iter = h$extraRoots.iter();
     while((nt = iter.next()) !== null) h$follow(nt.root);
+    ;
+    for(i=0;i<h$stablePtrData.length;i++) {
+      if(h$stablePtrData[i]) h$follow(h$stablePtrData[i]);
+    }
     // clean up threads waiting on unreachable synchronization primitives
     h$resolveDeadlocks();
     // clean up unreachable weak refs
@@ -5778,7 +5826,6 @@ function h$finalizeCAFs() {
 /* The value of O_BINARY. */
 /* The value of SIGINT. */
 /* Define to 1 if you have the `clock_gettime' function. */
-/* #undef HAVE_CLOCK_GETTIME */
 /* Define to 1 if you have the <ctype.h> header file. */
 /* Define if you have epoll support. */
 /* #undef HAVE_EPOLL */
@@ -5788,6 +5835,7 @@ function h$finalizeCAFs() {
 /* Define to 1 if you have the `eventfd' function. */
 /* #undef HAVE_EVENTFD */
 /* Define to 1 if you have the <fcntl.h> header file. */
+/* Define if you have flock support. */
 /* Define to 1 if you have the `ftruncate' function. */
 /* Define to 1 if you have the `getclock' function. */
 /* #undef HAVE_GETCLOCK */
@@ -5805,6 +5853,8 @@ function h$finalizeCAFs() {
 /* Define to 1 if the system has the type `long long'. */
 /* Define to 1 if you have the `lstat' function. */
 /* Define to 1 if you have the <memory.h> header file. */
+/* Define if you have open file descriptor lock support. */
+/* #undef HAVE_OFD_LOCKING */
 /* Define if you have poll support. */
 /* Define to 1 if you have the <poll.h> header file. */
 /* Define to 1 if you have the <signal.h> header file. */
@@ -5817,6 +5867,7 @@ function h$finalizeCAFs() {
 /* Define to 1 if you have the <sys/eventfd.h> header file. */
 /* #undef HAVE_SYS_EVENTFD_H */
 /* Define to 1 if you have the <sys/event.h> header file. */
+/* Define to 1 if you have the <sys/file.h> header file. */
 /* Define to 1 if you have the <sys/resource.h> header file. */
 /* Define to 1 if you have the <sys/select.h> header file. */
 /* Define to 1 if you have the <sys/stat.h> header file. */
@@ -5833,6 +5884,7 @@ function h$finalizeCAFs() {
 /* Define to 1 if you have the `times' function. */
 /* Define to 1 if you have the <time.h> header file. */
 /* Define to 1 if you have the <unistd.h> header file. */
+/* Define to 1 if you have the `unsetenv' function. */
 /* Define to 1 if you have the <utime.h> header file. */
 /* Define to 1 if you have the <wctype.h> header file. */
 /* Define to 1 if you have the <windows.h> header file. */
@@ -5850,7 +5902,10 @@ function h$finalizeCAFs() {
 /* Define to Haskell type for dev_t */
 /* Define to Haskell type for double */
 /* Define to Haskell type for float */
+/* Define to Haskell type for fsblkcnt_t */
+/* Define to Haskell type for fsfilcnt_t */
 /* Define to Haskell type for gid_t */
+/* Define to Haskell type for id_t */
 /* Define to Haskell type for ino_t */
 /* Define to Haskell type for int */
 /* Define to Haskell type for intmax_t */
@@ -5871,6 +5926,7 @@ function h$finalizeCAFs() {
 /* Define to Haskell type for ssize_t */
 /* Define to Haskell type for suseconds_t */
 /* Define to Haskell type for tcflag_t */
+/* Define to Haskell type for timer_t */
 /* Define to Haskell type for time_t */
 /* Define to Haskell type for uid_t */
 /* Define to Haskell type for uintmax_t */
@@ -5892,10 +5948,25 @@ function h$finalizeCAFs() {
 /* The size of `kev.flags', as computed by sizeof. */
 /* The size of `struct MD5Context', as computed by sizeof. */
 /* Define to 1 if you have the ANSI C header files. */
+/* Define if stdlib.h declares unsetenv to return void. */
+/* #undef UNSETENV_RETURNS_VOID */
+/* Enable extensions on AIX 3, Interix.  */
+/* Enable GNU extensions on systems that have them.  */
+/* Enable threading extensions on Solaris.  */
+/* Enable extensions on HP NonStop.  */
+/* Enable general extensions on Solaris.  */
+/* Enable large inode numbers on Mac OS X 10.5.  */
 /* Number of bits in a file offset, on hosts where this is settable. */
 /* #undef _FILE_OFFSET_BITS */
 /* Define for large files, on AIX-style hosts. */
 /* #undef _LARGE_FILES */
+/* Define to 1 if on MINIX. */
+/* #undef _MINIX */
+/* Define to 2 if the system does not provide POSIX.1 features except with
+   this defined. */
+/* #undef _POSIX_1_SOURCE */
+/* Define to 1 if you need to in order for `stat' and other things to work. */
+/* #undef _POSIX_SOURCE */
 var h$errno = 0;
 function h$__hscore_get_errno() {
   ;
@@ -5924,22 +5995,26 @@ function h$setErrno(e) {
       if(es.indexOf('EMFILE') !== -1) return 24;
       if(es.indexOf('EPIPE') !== -1) return 32;
       if(es.indexOf('EAGAIN') !== -1) return 35;
+      if(es.indexOf('EINVAL') !== -1) return 22;
+      if(es.indexOf('ESPIPE') !== -1) return 29;
+      if(es.indexOf('EBADF') !== -1) return 9;
       if(es.indexOf('Bad argument') !== -1) return 2; // fixme?
       throw ("setErrno not yet implemented: " + e);
   }
   h$errno = getErr();
 }
-var h$errorStrs = { 7: "too big"
-                   , CONST_EACCESS: "no access"
-                   , 22: "invalid"
-                   , 9: "bad file descriptor"
-                   , 20: "not a directory"
-                   , 2: "no such file or directory"
-                   , 1: "operation not permitted"
-                   , 17: "file exists"
-                   , 24: "too many open files"
-                   , 32: "broken pipe"
-                   , 35: "resource temporarily unavailable"
+var h$errorStrs = { 7: "Argument list too long"
+                   , CONST_EACCESS: "Permission denied"
+                   , 22: "Invalid argument"
+                   , 9: "Bad file descriptor"
+                   , 20: "Not a directory"
+                   , 2: "No such file or directory"
+                   , 1: "Operation not permitted"
+                   , 17: "File exists"
+                   , 24: "Too many open files"
+                   , 32: "Broken pipe"
+                   , 35: "Resource temporarily unavailable"
+                   , 29: "Illegal seek"
                    }
 function h$handleErrno(r_err, f) {
   try {
@@ -6734,6 +6809,11 @@ function h$u_towlower(ch) {
     if(h$toLower == null) { h$toLower = h$decodeMapping(h$toLowerMapping, h$caseMapping); }
     return ch+(h$toLower[ch]|0);
 }
+var h$toTitle = null;
+function h$u_towtitle(ch) {
+    if(h$toTitle == null) { h$toTitle = h$decodeMapping(h$toTitleMapping, h$caseMapping); }
+    return ch+(h$toTitle[ch]|0);
+}
 var h$alpha = null;
 function h$u_iswalpha(a) {
     if(h$alpha == null) { h$alpha = h$decodeRLE(h$alphaRanges); }
@@ -6871,6 +6951,9 @@ function h$u_gencat(a) {
 function h$localeEncoding() {
    // h$log("### localeEncoding");
    { h$ret1 = (0); return (h$encodeUtf8("UTF-8")); }; // offset 0
+}
+function h$wcwidth(wch) {
+  return 1; // XXX: add real implementation
 }
 function h$rawStringData(str) {
     var v = h$newByteArray(str.length+1);
@@ -7294,7 +7377,7 @@ function h$toHsStringA(str) {
 }
 // convert array with modified UTF-8 encoded text
 function h$toHsStringMU8(arr) {
-    var accept = false, b, n = 0, cp = 0, r = h$ghczmprimZCGHCziTypesziZMZN;
+    var i = arr.length - 1, accept = false, b, n = 0, cp = 0, r = h$ghczmprimZCGHCziTypesziZMZN;
     while(i >= 0) {
         b = arr[i];
         if(!(b & 128)) {
@@ -7347,7 +7430,8 @@ function h$appendToHsStringA(str, appendTo) {
 function h$throwJSException(e) {
   // create a JSException object and  wrap it in a SomeException
   // adding the Exception dictionary
-  var someE = (h$c2(h$baseZCGHCziExceptionziSomeException_con_e,(h$ghcjszmprimZCGHCJSziPrimzizdfExceptionJSException),((h$c2(h$ghcjszmprimZCGHCJSziPrimziJSException_con_e,((h$c1(h$ghcjszmprimZCGHCJSziPrimziJSVal_con_e, (e)))),(h$toHsString(e.toString())))))));
+  var strVal = e.toString() + '\n' + Array.prototype.join.call(e.stack, '\n');
+  var someE = (h$c2(h$baseZCGHCziExceptionziSomeException_con_e,(h$ghcjszmprimZCGHCJSziPrimzizdfExceptionJSException),((h$c2(h$ghcjszmprimZCGHCJSziPrimziJSException_con_e,((h$c1(h$ghcjszmprimZCGHCJSziPrimziJSVal_con_e, (e)))),(h$toHsString(strVal)))))));
   return h$throw(someE, true);
 }
 /* Copyright (C) 1991-2014 Free Software Foundation, Inc.
@@ -7490,10 +7574,13 @@ var h$fakeCpuTime = 1.0;
 function h$getCPUTime() {
 if(h$isNode) {
   var t = process.cpuUsage();
-  return t.user + t.system;
+  var cput = t.user + t.system;
+  ;
+  return cput;
 }
   // XXX this allows more testsuites to run
   //     but I don't really like returning a fake value here
+  ;
   return ++h$fakeCpuTime;
   return -1;
 }
@@ -7501,7 +7588,11 @@ function h$__hscore_environ() {
     ;
     if(h$isNode) {
         var env = [], i;
-        for(i in process.env) env.push(i + '=' + process.env[i]);
+        for(i in process.env) {
+          var envv = i + '=' + process.env[i];
+          ;
+          env.push(envv);
+        }
         if(env.length === 0) return null;
         var p = h$newByteArray(4*env.length+1);
         p.arr = [];
@@ -7511,14 +7602,66 @@ function h$__hscore_environ() {
     }
     { h$ret1 = (0); return (null); };
 }
+function h$__hsbase_unsetenv(name, name_off) {
+    return h$unsetenv(name, name_off);
+}
 function h$getenv(name, name_off) {
     ;
     if(h$isNode) {
         var n = h$decodeUtf8z(name, name_off);
-        if(typeof process.env[n] !== 'undefined')
+        ;
+        if(typeof process.env[n] !== 'undefined') {
+            ;
             { h$ret1 = (0); return (h$encodeUtf8(process.env[n])); };
+        }
     }
     { h$ret1 = (0); return (null); };
+}
+function h$setenv(name, name_off, val, val_off, overwrite) {
+  var n = h$decodeUtf8z(name, name_off);
+  var v = h$decodeUtf8z(val, val_off);
+  ;
+  if(n.indexOf('=') !== -1) {
+    h$setErrno("EINVAL");
+    return -1;
+  }
+  if(h$isNode) {
+    if(overwrite || typeof process.env[n] !== 'undefined') process.env[n] = v;
+  }
+  return 0;
+}
+function h$unsetenv(name, name_off) {
+  var n = h$decodeUtf8z(name, name_off);
+  ;
+  if(n.indexOf('=') !== -1) {
+    h$setErrno("EINVAL");
+    return -1;
+  }
+  if(h$isNode) delete process.env[n];
+  return 0;
+}
+/*
+  Note:
+   SUSv2 specifies that the argument passed to putenv is made part
+   of the environment. Later changes to the value will be reflected
+   in the environment.
+
+   this implementation makes a copy instead.
+ */
+function h$putenv(str, str_off) {
+  var x = h$decodeUtf8z(str, str_off);
+  var i = x.indexOf('=');
+  ;
+  if(i === -1) { // remove the value
+    ;
+    if(h$isNode) delete process.env[x];
+  } else { // set the value
+    var name = x.substring(0, i)
+    var val = x.substring(i+1);
+    ;
+    if(h$isNode) process.env[name] = val;
+  }
+  return 0;
 }
 function h$errorBelch() {
   h$log("### errorBelch: do we need to handle a vararg function here?");
@@ -9466,6 +9609,78 @@ function h$hs_spt_lookup_key(key1,key2,key3,key4) {
     if(s && s[key1] && s[key1][key2] && s[key1][key2][key3] &&
        s[key1][key2][key3][key4]) return s[key1][key2][key3][key4];
     return null;
+}
+/* Copyright (C) 1991-2014 Free Software Foundation, Inc.
+   This file is part of the GNU C Library.
+
+   The GNU C Library is free software; you can redistribute it and/or
+   modify it under the terms of the GNU Lesser General Public
+   License as published by the Free Software Foundation; either
+   version 2.1 of the License, or (at your option) any later version.
+
+   The GNU C Library is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+   Lesser General Public License for more details.
+
+   You should have received a copy of the GNU Lesser General Public
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
+/* This header is separate from features.h so that the compiler can
+   include it implicitly at the start of every compilation.  It must
+   not itself include <features.h> or any other header that includes
+   <features.h> because the implicit include comes before any feature
+   test macros that may be defined in a source file before it first
+   explicitly includes a system header.  GCC knows the name of this
+   header in order to preinclude it.  */
+/* glibc's intent is to support the IEC 559 math functionality, real
+   and complex.  If the GCC (4.9 and later) predefined macros
+   specifying compiler intent are available, use them to determine
+   whether the overall intent is to support these features; otherwise,
+   presume an older compiler has intent to support these features and
+   define these macros by default.  */
+/* wchar_t uses ISO/IEC 10646 (2nd ed., published 2011-03-15) /
+   Unicode 6.0.  */
+/* We do not support C11 <threads.h>.  */
+/*
+  Stable pointers are all allocated in the h$StablePtrData buffer and
+  can therefore be distinguished by offset
+
+  StablePtr# is treated as Word32# when it comes to writing and reading them
+ */
+var h$stablePtrData = [null];
+var h$stablePtrBuf = h$newByteArray(8);
+var h$stablePtrN = 1;
+var h$stablePtrFree = [];
+function h$makeStablePtr(v) {
+  ;
+  if(!v) return 0;
+  var slot = h$stablePtrFree.pop();
+  if(slot === undefined) {
+    slot = h$stablePtrN++;
+  }
+  ;
+  h$stablePtrData[slot] = v;
+  return slot << 2;
+}
+function h$deRefStablePtr(stable_o) {
+  var slot = stable_o >> 2;
+  return h$stablePtrData[slot];
+}
+function h$hs_free_stable_ptr(stable_d, stable_o) {
+  var slot = stable_o >> 2;
+  ;
+  if(h$stablePtrData[slot] !== null) {
+    h$stablePtrData[slot] = null;
+    h$stablePtrFree.push(slot);
+  }
+}
+// not strictly stableptr, but we make it work only for stable pointers
+function h$addrToAny(addr_v, addr_o) {
+  ;
+  ;
+  var slot = addr_o >> 2;
+  return h$stablePtrData[slot];
 }
 /* Copyright (C) 1991-2014 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
@@ -19418,6 +19633,28 @@ function h$upd_frame()
       h$wakeupThread(h$RTS_582[h$RTS_583]);
     };
   };
+  if(((typeof h$RTS_581.m === "object") && h$RTS_581.m.sel))
+  {
+    var h$RTS_584 = h$RTS_581.m.sel;
+    for(var h$RTS_585 = 0;(h$RTS_585 < h$RTS_584.length);(h$RTS_585++)) {
+      var h$RTS_586 = h$RTS_584[h$RTS_585];
+      var h$RTS_587 = h$RTS_586.d2(h$r1);
+      if((typeof h$RTS_587 === "object"))
+      {
+        h$RTS_586.f = h$RTS_587.f;
+        h$RTS_586.d1 = h$RTS_587.d1;
+        h$RTS_586.d2 = h$RTS_587.d2;
+        h$RTS_586.m = h$RTS_587.m;
+      }
+      else
+      {
+        h$RTS_586.f = h$unbox_e;
+        h$RTS_586.d1 = h$RTS_587;
+        h$RTS_586.d2 = null;
+        h$RTS_586.m = 0;
+      };
+    };
+  };
   if((typeof h$r1 === "object"))
   {
     h$RTS_581.f = h$r1.f;
@@ -19438,286 +19675,286 @@ function h$upd_frame()
 h$o(h$upd_frame, (-1), 0, 1, 256, null);
 function h$upd_frame_lne()
 {
-  var h$RTS_584 = h$stack[(h$sp - 1)];
-  h$stack[h$RTS_584] = h$r1;
+  var h$RTS_588 = h$stack[(h$sp - 1)];
+  h$stack[h$RTS_588] = h$r1;
   h$sp -= 2;
   return h$rs();
 };
 h$o(h$upd_frame_lne, (-1), 0, 1, 256, null);
 function h$pap_gen()
 {
-  var h$RTS_585 = h$r1.d1;
-  var h$RTS_586 = h$RTS_585.f;
-  var h$RTS_587 = h$r1.d2;
-  var h$RTS_588 = (((h$RTS_586.t === 1) ? h$RTS_586.a : h$RTS_585.d2.d1) >> 8);
-  var h$RTS_589 = (h$r1.d2.d1 >> 8);
-  var h$RTS_590 = (h$RTS_588 - h$RTS_589);
-  h$moveRegs2(h$RTS_589, h$RTS_590);
-  switch (h$RTS_590)
+  var h$RTS_589 = h$r1.d1;
+  var h$RTS_590 = h$RTS_589.f;
+  var h$RTS_591 = h$r1.d2;
+  var h$RTS_592 = (((h$RTS_590.t === 1) ? h$RTS_590.a : h$RTS_589.d2.d1) >> 8);
+  var h$RTS_593 = (h$r1.d2.d1 >> 8);
+  var h$RTS_594 = (h$RTS_592 - h$RTS_593);
+  h$moveRegs2(h$RTS_593, h$RTS_594);
+  switch (h$RTS_594)
   {
     case (127):
-      h$regs[95] = h$RTS_587.d128;
+      h$regs[95] = h$RTS_591.d128;
     case (126):
-      h$regs[94] = h$RTS_587.d127;
+      h$regs[94] = h$RTS_591.d127;
     case (125):
-      h$regs[93] = h$RTS_587.d126;
+      h$regs[93] = h$RTS_591.d126;
     case (124):
-      h$regs[92] = h$RTS_587.d125;
+      h$regs[92] = h$RTS_591.d125;
     case (123):
-      h$regs[91] = h$RTS_587.d124;
+      h$regs[91] = h$RTS_591.d124;
     case (122):
-      h$regs[90] = h$RTS_587.d123;
+      h$regs[90] = h$RTS_591.d123;
     case (121):
-      h$regs[89] = h$RTS_587.d122;
+      h$regs[89] = h$RTS_591.d122;
     case (120):
-      h$regs[88] = h$RTS_587.d121;
+      h$regs[88] = h$RTS_591.d121;
     case (119):
-      h$regs[87] = h$RTS_587.d120;
+      h$regs[87] = h$RTS_591.d120;
     case (118):
-      h$regs[86] = h$RTS_587.d119;
+      h$regs[86] = h$RTS_591.d119;
     case (117):
-      h$regs[85] = h$RTS_587.d118;
+      h$regs[85] = h$RTS_591.d118;
     case (116):
-      h$regs[84] = h$RTS_587.d117;
+      h$regs[84] = h$RTS_591.d117;
     case (115):
-      h$regs[83] = h$RTS_587.d116;
+      h$regs[83] = h$RTS_591.d116;
     case (114):
-      h$regs[82] = h$RTS_587.d115;
+      h$regs[82] = h$RTS_591.d115;
     case (113):
-      h$regs[81] = h$RTS_587.d114;
+      h$regs[81] = h$RTS_591.d114;
     case (112):
-      h$regs[80] = h$RTS_587.d113;
+      h$regs[80] = h$RTS_591.d113;
     case (111):
-      h$regs[79] = h$RTS_587.d112;
+      h$regs[79] = h$RTS_591.d112;
     case (110):
-      h$regs[78] = h$RTS_587.d111;
+      h$regs[78] = h$RTS_591.d111;
     case (109):
-      h$regs[77] = h$RTS_587.d110;
+      h$regs[77] = h$RTS_591.d110;
     case (108):
-      h$regs[76] = h$RTS_587.d109;
+      h$regs[76] = h$RTS_591.d109;
     case (107):
-      h$regs[75] = h$RTS_587.d108;
+      h$regs[75] = h$RTS_591.d108;
     case (106):
-      h$regs[74] = h$RTS_587.d107;
+      h$regs[74] = h$RTS_591.d107;
     case (105):
-      h$regs[73] = h$RTS_587.d106;
+      h$regs[73] = h$RTS_591.d106;
     case (104):
-      h$regs[72] = h$RTS_587.d105;
+      h$regs[72] = h$RTS_591.d105;
     case (103):
-      h$regs[71] = h$RTS_587.d104;
+      h$regs[71] = h$RTS_591.d104;
     case (102):
-      h$regs[70] = h$RTS_587.d103;
+      h$regs[70] = h$RTS_591.d103;
     case (101):
-      h$regs[69] = h$RTS_587.d102;
+      h$regs[69] = h$RTS_591.d102;
     case (100):
-      h$regs[68] = h$RTS_587.d101;
+      h$regs[68] = h$RTS_591.d101;
     case (99):
-      h$regs[67] = h$RTS_587.d100;
+      h$regs[67] = h$RTS_591.d100;
     case (98):
-      h$regs[66] = h$RTS_587.d99;
+      h$regs[66] = h$RTS_591.d99;
     case (97):
-      h$regs[65] = h$RTS_587.d98;
+      h$regs[65] = h$RTS_591.d98;
     case (96):
-      h$regs[64] = h$RTS_587.d97;
+      h$regs[64] = h$RTS_591.d97;
     case (95):
-      h$regs[63] = h$RTS_587.d96;
+      h$regs[63] = h$RTS_591.d96;
     case (94):
-      h$regs[62] = h$RTS_587.d95;
+      h$regs[62] = h$RTS_591.d95;
     case (93):
-      h$regs[61] = h$RTS_587.d94;
+      h$regs[61] = h$RTS_591.d94;
     case (92):
-      h$regs[60] = h$RTS_587.d93;
+      h$regs[60] = h$RTS_591.d93;
     case (91):
-      h$regs[59] = h$RTS_587.d92;
+      h$regs[59] = h$RTS_591.d92;
     case (90):
-      h$regs[58] = h$RTS_587.d91;
+      h$regs[58] = h$RTS_591.d91;
     case (89):
-      h$regs[57] = h$RTS_587.d90;
+      h$regs[57] = h$RTS_591.d90;
     case (88):
-      h$regs[56] = h$RTS_587.d89;
+      h$regs[56] = h$RTS_591.d89;
     case (87):
-      h$regs[55] = h$RTS_587.d88;
+      h$regs[55] = h$RTS_591.d88;
     case (86):
-      h$regs[54] = h$RTS_587.d87;
+      h$regs[54] = h$RTS_591.d87;
     case (85):
-      h$regs[53] = h$RTS_587.d86;
+      h$regs[53] = h$RTS_591.d86;
     case (84):
-      h$regs[52] = h$RTS_587.d85;
+      h$regs[52] = h$RTS_591.d85;
     case (83):
-      h$regs[51] = h$RTS_587.d84;
+      h$regs[51] = h$RTS_591.d84;
     case (82):
-      h$regs[50] = h$RTS_587.d83;
+      h$regs[50] = h$RTS_591.d83;
     case (81):
-      h$regs[49] = h$RTS_587.d82;
+      h$regs[49] = h$RTS_591.d82;
     case (80):
-      h$regs[48] = h$RTS_587.d81;
+      h$regs[48] = h$RTS_591.d81;
     case (79):
-      h$regs[47] = h$RTS_587.d80;
+      h$regs[47] = h$RTS_591.d80;
     case (78):
-      h$regs[46] = h$RTS_587.d79;
+      h$regs[46] = h$RTS_591.d79;
     case (77):
-      h$regs[45] = h$RTS_587.d78;
+      h$regs[45] = h$RTS_591.d78;
     case (76):
-      h$regs[44] = h$RTS_587.d77;
+      h$regs[44] = h$RTS_591.d77;
     case (75):
-      h$regs[43] = h$RTS_587.d76;
+      h$regs[43] = h$RTS_591.d76;
     case (74):
-      h$regs[42] = h$RTS_587.d75;
+      h$regs[42] = h$RTS_591.d75;
     case (73):
-      h$regs[41] = h$RTS_587.d74;
+      h$regs[41] = h$RTS_591.d74;
     case (72):
-      h$regs[40] = h$RTS_587.d73;
+      h$regs[40] = h$RTS_591.d73;
     case (71):
-      h$regs[39] = h$RTS_587.d72;
+      h$regs[39] = h$RTS_591.d72;
     case (70):
-      h$regs[38] = h$RTS_587.d71;
+      h$regs[38] = h$RTS_591.d71;
     case (69):
-      h$regs[37] = h$RTS_587.d70;
+      h$regs[37] = h$RTS_591.d70;
     case (68):
-      h$regs[36] = h$RTS_587.d69;
+      h$regs[36] = h$RTS_591.d69;
     case (67):
-      h$regs[35] = h$RTS_587.d68;
+      h$regs[35] = h$RTS_591.d68;
     case (66):
-      h$regs[34] = h$RTS_587.d67;
+      h$regs[34] = h$RTS_591.d67;
     case (65):
-      h$regs[33] = h$RTS_587.d66;
+      h$regs[33] = h$RTS_591.d66;
     case (64):
-      h$regs[32] = h$RTS_587.d65;
+      h$regs[32] = h$RTS_591.d65;
     case (63):
-      h$regs[31] = h$RTS_587.d64;
+      h$regs[31] = h$RTS_591.d64;
     case (62):
-      h$regs[30] = h$RTS_587.d63;
+      h$regs[30] = h$RTS_591.d63;
     case (61):
-      h$regs[29] = h$RTS_587.d62;
+      h$regs[29] = h$RTS_591.d62;
     case (60):
-      h$regs[28] = h$RTS_587.d61;
+      h$regs[28] = h$RTS_591.d61;
     case (59):
-      h$regs[27] = h$RTS_587.d60;
+      h$regs[27] = h$RTS_591.d60;
     case (58):
-      h$regs[26] = h$RTS_587.d59;
+      h$regs[26] = h$RTS_591.d59;
     case (57):
-      h$regs[25] = h$RTS_587.d58;
+      h$regs[25] = h$RTS_591.d58;
     case (56):
-      h$regs[24] = h$RTS_587.d57;
+      h$regs[24] = h$RTS_591.d57;
     case (55):
-      h$regs[23] = h$RTS_587.d56;
+      h$regs[23] = h$RTS_591.d56;
     case (54):
-      h$regs[22] = h$RTS_587.d55;
+      h$regs[22] = h$RTS_591.d55;
     case (53):
-      h$regs[21] = h$RTS_587.d54;
+      h$regs[21] = h$RTS_591.d54;
     case (52):
-      h$regs[20] = h$RTS_587.d53;
+      h$regs[20] = h$RTS_591.d53;
     case (51):
-      h$regs[19] = h$RTS_587.d52;
+      h$regs[19] = h$RTS_591.d52;
     case (50):
-      h$regs[18] = h$RTS_587.d51;
+      h$regs[18] = h$RTS_591.d51;
     case (49):
-      h$regs[17] = h$RTS_587.d50;
+      h$regs[17] = h$RTS_591.d50;
     case (48):
-      h$regs[16] = h$RTS_587.d49;
+      h$regs[16] = h$RTS_591.d49;
     case (47):
-      h$regs[15] = h$RTS_587.d48;
+      h$regs[15] = h$RTS_591.d48;
     case (46):
-      h$regs[14] = h$RTS_587.d47;
+      h$regs[14] = h$RTS_591.d47;
     case (45):
-      h$regs[13] = h$RTS_587.d46;
+      h$regs[13] = h$RTS_591.d46;
     case (44):
-      h$regs[12] = h$RTS_587.d45;
+      h$regs[12] = h$RTS_591.d45;
     case (43):
-      h$regs[11] = h$RTS_587.d44;
+      h$regs[11] = h$RTS_591.d44;
     case (42):
-      h$regs[10] = h$RTS_587.d43;
+      h$regs[10] = h$RTS_591.d43;
     case (41):
-      h$regs[9] = h$RTS_587.d42;
+      h$regs[9] = h$RTS_591.d42;
     case (40):
-      h$regs[8] = h$RTS_587.d41;
+      h$regs[8] = h$RTS_591.d41;
     case (39):
-      h$regs[7] = h$RTS_587.d40;
+      h$regs[7] = h$RTS_591.d40;
     case (38):
-      h$regs[6] = h$RTS_587.d39;
+      h$regs[6] = h$RTS_591.d39;
     case (37):
-      h$regs[5] = h$RTS_587.d38;
+      h$regs[5] = h$RTS_591.d38;
     case (36):
-      h$regs[4] = h$RTS_587.d37;
+      h$regs[4] = h$RTS_591.d37;
     case (35):
-      h$regs[3] = h$RTS_587.d36;
+      h$regs[3] = h$RTS_591.d36;
     case (34):
-      h$regs[2] = h$RTS_587.d35;
+      h$regs[2] = h$RTS_591.d35;
     case (33):
-      h$regs[1] = h$RTS_587.d34;
+      h$regs[1] = h$RTS_591.d34;
     case (32):
-      h$regs[0] = h$RTS_587.d33;
+      h$regs[0] = h$RTS_591.d33;
     case (31):
-      h$r32 = h$RTS_587.d32;
+      h$r32 = h$RTS_591.d32;
     case (30):
-      h$r31 = h$RTS_587.d31;
+      h$r31 = h$RTS_591.d31;
     case (29):
-      h$r30 = h$RTS_587.d30;
+      h$r30 = h$RTS_591.d30;
     case (28):
-      h$r29 = h$RTS_587.d29;
+      h$r29 = h$RTS_591.d29;
     case (27):
-      h$r28 = h$RTS_587.d28;
+      h$r28 = h$RTS_591.d28;
     case (26):
-      h$r27 = h$RTS_587.d27;
+      h$r27 = h$RTS_591.d27;
     case (25):
-      h$r26 = h$RTS_587.d26;
+      h$r26 = h$RTS_591.d26;
     case (24):
-      h$r25 = h$RTS_587.d25;
+      h$r25 = h$RTS_591.d25;
     case (23):
-      h$r24 = h$RTS_587.d24;
+      h$r24 = h$RTS_591.d24;
     case (22):
-      h$r23 = h$RTS_587.d23;
+      h$r23 = h$RTS_591.d23;
     case (21):
-      h$r22 = h$RTS_587.d22;
+      h$r22 = h$RTS_591.d22;
     case (20):
-      h$r21 = h$RTS_587.d21;
+      h$r21 = h$RTS_591.d21;
     case (19):
-      h$r20 = h$RTS_587.d20;
+      h$r20 = h$RTS_591.d20;
     case (18):
-      h$r19 = h$RTS_587.d19;
+      h$r19 = h$RTS_591.d19;
     case (17):
-      h$r18 = h$RTS_587.d18;
+      h$r18 = h$RTS_591.d18;
     case (16):
-      h$r17 = h$RTS_587.d17;
+      h$r17 = h$RTS_591.d17;
     case (15):
-      h$r16 = h$RTS_587.d16;
+      h$r16 = h$RTS_591.d16;
     case (14):
-      h$r15 = h$RTS_587.d15;
+      h$r15 = h$RTS_591.d15;
     case (13):
-      h$r14 = h$RTS_587.d14;
+      h$r14 = h$RTS_591.d14;
     case (12):
-      h$r13 = h$RTS_587.d13;
+      h$r13 = h$RTS_591.d13;
     case (11):
-      h$r12 = h$RTS_587.d12;
+      h$r12 = h$RTS_591.d12;
     case (10):
-      h$r11 = h$RTS_587.d11;
+      h$r11 = h$RTS_591.d11;
     case (9):
-      h$r10 = h$RTS_587.d10;
+      h$r10 = h$RTS_591.d10;
     case (8):
-      h$r9 = h$RTS_587.d9;
+      h$r9 = h$RTS_591.d9;
     case (7):
-      h$r8 = h$RTS_587.d8;
+      h$r8 = h$RTS_591.d8;
     case (6):
-      h$r7 = h$RTS_587.d7;
+      h$r7 = h$RTS_591.d7;
     case (5):
-      h$r6 = h$RTS_587.d6;
+      h$r6 = h$RTS_591.d6;
     case (4):
-      h$r5 = h$RTS_587.d5;
+      h$r5 = h$RTS_591.d5;
     case (3):
-      h$r4 = h$RTS_587.d4;
+      h$r4 = h$RTS_591.d4;
     case (2):
-      h$r3 = h$RTS_587.d3;
+      h$r3 = h$RTS_591.d3;
     case (1):
-      h$r2 = h$RTS_587.d2;
+      h$r2 = h$RTS_591.d2;
     default:
   };
-  h$r1 = h$RTS_585;
-  return h$RTS_586;
+  h$r1 = h$RTS_589;
+  return h$RTS_590;
 };
 h$o(h$pap_gen, 3, 0, (-1), (-1), null);
-function h$moveRegs2(h$RTS_591, h$RTS_592)
+function h$moveRegs2(h$RTS_595, h$RTS_596)
 {
-  switch (((h$RTS_591 << 8) | h$RTS_592))
+  switch (((h$RTS_595 << 8) | h$RTS_596))
   {
     case (257):
       h$r3 = h$r2;
@@ -19820,40 +20057,652 @@ function h$moveRegs2(h$RTS_591, h$RTS_592)
       h$r6 = h$r2;
       break;
     default:
-      for(var h$RTS_593 = h$RTS_591;(h$RTS_593 > 0);(h$RTS_593--)) {
-        h$setReg(((h$RTS_593 + 1) + h$RTS_592), h$getReg((h$RTS_593 + 1)));
+      for(var h$RTS_597 = h$RTS_595;(h$RTS_597 > 0);(h$RTS_597--)) {
+        h$setReg(((h$RTS_597 + 1) + h$RTS_596), h$getReg((h$RTS_597 + 1)));
       };
   };
 };
+function h$c_sel_1(h$RTS_598)
+{
+  if(((h$RTS_598.f.t === 0) || (h$RTS_598.f.t === 5)))
+  {
+    return h$mkSelThunk(h$RTS_598, h$c_sel_1_e, h$c_sel_1_res);
+  }
+  else
+  {
+    return h$RTS_598.d1;
+  };
+};
+function h$c_sel_1_res(h$RTS_599)
+{
+  return h$RTS_599.d1;
+};
+function h$c_sel_1_e()
+{
+  var h$RTS_600 = h$r1.d1;
+  if(((h$RTS_600.f.t === 0) || (h$RTS_600.f.t === 5)))
+  {
+    h$sp++;
+    h$stack[h$sp] = h$c_sel_1_frame_e;
+    return h$e(h$RTS_600);
+  }
+  else
+  {
+    return h$e(h$RTS_600.d1);
+  };
+};
+h$o(h$c_sel_1_e, 0, 0, 1, 256, null);
+function h$c_sel_1_frame_e()
+{
+  h$sp--;
+  return h$e(h$r1.d1);
+};
+h$o(h$c_sel_1_frame_e, (-1), 0, 0, 256, null);
+function h$c_sel_2a(h$RTS_601)
+{
+  if(((h$RTS_601.f.t === 0) || (h$RTS_601.f.t === 5)))
+  {
+    return h$mkSelThunk(h$RTS_601, h$c_sel_2a_e, h$c_sel_2a_res);
+  }
+  else
+  {
+    return h$RTS_601.d2;
+  };
+};
+function h$c_sel_2a_res(h$RTS_602)
+{
+  return h$RTS_602.d2;
+};
+function h$c_sel_2a_e()
+{
+  var h$RTS_603 = h$r1.d1;
+  if(((h$RTS_603.f.t === 0) || (h$RTS_603.f.t === 5)))
+  {
+    h$sp++;
+    h$stack[h$sp] = h$c_sel_2a_frame_e;
+    return h$e(h$RTS_603);
+  }
+  else
+  {
+    return h$e(h$RTS_603.d2);
+  };
+};
+h$o(h$c_sel_2a_e, 0, 0, 1, 256, null);
+function h$c_sel_2a_frame_e()
+{
+  h$sp--;
+  return h$e(h$r1.d2);
+};
+h$o(h$c_sel_2a_frame_e, (-1), 0, 0, 256, null);
+function h$c_sel_2b(h$RTS_604)
+{
+  if(((h$RTS_604.f.t === 0) || (h$RTS_604.f.t === 5)))
+  {
+    return h$mkSelThunk(h$RTS_604, h$c_sel_2b_e, h$c_sel_2b_res);
+  }
+  else
+  {
+    return h$RTS_604.d2.d1;
+  };
+};
+function h$c_sel_2b_res(h$RTS_605)
+{
+  return h$RTS_605.d2.d1;
+};
+function h$c_sel_2b_e()
+{
+  var h$RTS_606 = h$r1.d1;
+  if(((h$RTS_606.f.t === 0) || (h$RTS_606.f.t === 5)))
+  {
+    h$sp++;
+    h$stack[h$sp] = h$c_sel_2b_frame_e;
+    return h$e(h$RTS_606);
+  }
+  else
+  {
+    return h$e(h$RTS_606.d2.d1);
+  };
+};
+h$o(h$c_sel_2b_e, 0, 0, 1, 256, null);
+function h$c_sel_2b_frame_e()
+{
+  h$sp--;
+  return h$e(h$r1.d2.d1);
+};
+h$o(h$c_sel_2b_frame_e, (-1), 0, 0, 256, null);
+function h$c_sel_3(h$RTS_607)
+{
+  if(((h$RTS_607.f.t === 0) || (h$RTS_607.f.t === 5)))
+  {
+    return h$mkSelThunk(h$RTS_607, h$c_sel_3_e, h$c_sel_3_res);
+  }
+  else
+  {
+    return h$RTS_607.d2.d2;
+  };
+};
+function h$c_sel_3_res(h$RTS_608)
+{
+  return h$RTS_608.d2.d2;
+};
+function h$c_sel_3_e()
+{
+  var h$RTS_609 = h$r1.d1;
+  if(((h$RTS_609.f.t === 0) || (h$RTS_609.f.t === 5)))
+  {
+    h$sp++;
+    h$stack[h$sp] = h$c_sel_3_frame_e;
+    return h$e(h$RTS_609);
+  }
+  else
+  {
+    return h$e(h$RTS_609.d2.d2);
+  };
+};
+h$o(h$c_sel_3_e, 0, 0, 1, 256, null);
+function h$c_sel_3_frame_e()
+{
+  h$sp--;
+  return h$e(h$r1.d2.d2);
+};
+h$o(h$c_sel_3_frame_e, (-1), 0, 0, 256, null);
+function h$c_sel_4(h$RTS_610)
+{
+  if(((h$RTS_610.f.t === 0) || (h$RTS_610.f.t === 5)))
+  {
+    return h$mkSelThunk(h$RTS_610, h$c_sel_4_e, h$c_sel_4_res);
+  }
+  else
+  {
+    return h$RTS_610.d2.d3;
+  };
+};
+function h$c_sel_4_res(h$RTS_611)
+{
+  return h$RTS_611.d2.d3;
+};
+function h$c_sel_4_e()
+{
+  var h$RTS_612 = h$r1.d1;
+  if(((h$RTS_612.f.t === 0) || (h$RTS_612.f.t === 5)))
+  {
+    h$sp++;
+    h$stack[h$sp] = h$c_sel_4_frame_e;
+    return h$e(h$RTS_612);
+  }
+  else
+  {
+    return h$e(h$RTS_612.d2.d3);
+  };
+};
+h$o(h$c_sel_4_e, 0, 0, 1, 256, null);
+function h$c_sel_4_frame_e()
+{
+  h$sp--;
+  return h$e(h$r1.d2.d3);
+};
+h$o(h$c_sel_4_frame_e, (-1), 0, 0, 256, null);
+function h$c_sel_5(h$RTS_613)
+{
+  if(((h$RTS_613.f.t === 0) || (h$RTS_613.f.t === 5)))
+  {
+    return h$mkSelThunk(h$RTS_613, h$c_sel_5_e, h$c_sel_5_res);
+  }
+  else
+  {
+    return h$RTS_613.d2.d4;
+  };
+};
+function h$c_sel_5_res(h$RTS_614)
+{
+  return h$RTS_614.d2.d4;
+};
+function h$c_sel_5_e()
+{
+  var h$RTS_615 = h$r1.d1;
+  if(((h$RTS_615.f.t === 0) || (h$RTS_615.f.t === 5)))
+  {
+    h$sp++;
+    h$stack[h$sp] = h$c_sel_5_frame_e;
+    return h$e(h$RTS_615);
+  }
+  else
+  {
+    return h$e(h$RTS_615.d2.d4);
+  };
+};
+h$o(h$c_sel_5_e, 0, 0, 1, 256, null);
+function h$c_sel_5_frame_e()
+{
+  h$sp--;
+  return h$e(h$r1.d2.d4);
+};
+h$o(h$c_sel_5_frame_e, (-1), 0, 0, 256, null);
+function h$c_sel_6(h$RTS_616)
+{
+  if(((h$RTS_616.f.t === 0) || (h$RTS_616.f.t === 5)))
+  {
+    return h$mkSelThunk(h$RTS_616, h$c_sel_6_e, h$c_sel_6_res);
+  }
+  else
+  {
+    return h$RTS_616.d2.d5;
+  };
+};
+function h$c_sel_6_res(h$RTS_617)
+{
+  return h$RTS_617.d2.d5;
+};
+function h$c_sel_6_e()
+{
+  var h$RTS_618 = h$r1.d1;
+  if(((h$RTS_618.f.t === 0) || (h$RTS_618.f.t === 5)))
+  {
+    h$sp++;
+    h$stack[h$sp] = h$c_sel_6_frame_e;
+    return h$e(h$RTS_618);
+  }
+  else
+  {
+    return h$e(h$RTS_618.d2.d5);
+  };
+};
+h$o(h$c_sel_6_e, 0, 0, 1, 256, null);
+function h$c_sel_6_frame_e()
+{
+  h$sp--;
+  return h$e(h$r1.d2.d5);
+};
+h$o(h$c_sel_6_frame_e, (-1), 0, 0, 256, null);
+function h$c_sel_7(h$RTS_619)
+{
+  if(((h$RTS_619.f.t === 0) || (h$RTS_619.f.t === 5)))
+  {
+    return h$mkSelThunk(h$RTS_619, h$c_sel_7_e, h$c_sel_7_res);
+  }
+  else
+  {
+    return h$RTS_619.d2.d6;
+  };
+};
+function h$c_sel_7_res(h$RTS_620)
+{
+  return h$RTS_620.d2.d6;
+};
+function h$c_sel_7_e()
+{
+  var h$RTS_621 = h$r1.d1;
+  if(((h$RTS_621.f.t === 0) || (h$RTS_621.f.t === 5)))
+  {
+    h$sp++;
+    h$stack[h$sp] = h$c_sel_7_frame_e;
+    return h$e(h$RTS_621);
+  }
+  else
+  {
+    return h$e(h$RTS_621.d2.d6);
+  };
+};
+h$o(h$c_sel_7_e, 0, 0, 1, 256, null);
+function h$c_sel_7_frame_e()
+{
+  h$sp--;
+  return h$e(h$r1.d2.d6);
+};
+h$o(h$c_sel_7_frame_e, (-1), 0, 0, 256, null);
+function h$c_sel_8(h$RTS_622)
+{
+  if(((h$RTS_622.f.t === 0) || (h$RTS_622.f.t === 5)))
+  {
+    return h$mkSelThunk(h$RTS_622, h$c_sel_8_e, h$c_sel_8_res);
+  }
+  else
+  {
+    return h$RTS_622.d2.d7;
+  };
+};
+function h$c_sel_8_res(h$RTS_623)
+{
+  return h$RTS_623.d2.d7;
+};
+function h$c_sel_8_e()
+{
+  var h$RTS_624 = h$r1.d1;
+  if(((h$RTS_624.f.t === 0) || (h$RTS_624.f.t === 5)))
+  {
+    h$sp++;
+    h$stack[h$sp] = h$c_sel_8_frame_e;
+    return h$e(h$RTS_624);
+  }
+  else
+  {
+    return h$e(h$RTS_624.d2.d7);
+  };
+};
+h$o(h$c_sel_8_e, 0, 0, 1, 256, null);
+function h$c_sel_8_frame_e()
+{
+  h$sp--;
+  return h$e(h$r1.d2.d7);
+};
+h$o(h$c_sel_8_frame_e, (-1), 0, 0, 256, null);
+function h$c_sel_9(h$RTS_625)
+{
+  if(((h$RTS_625.f.t === 0) || (h$RTS_625.f.t === 5)))
+  {
+    return h$mkSelThunk(h$RTS_625, h$c_sel_9_e, h$c_sel_9_res);
+  }
+  else
+  {
+    return h$RTS_625.d2.d8;
+  };
+};
+function h$c_sel_9_res(h$RTS_626)
+{
+  return h$RTS_626.d2.d8;
+};
+function h$c_sel_9_e()
+{
+  var h$RTS_627 = h$r1.d1;
+  if(((h$RTS_627.f.t === 0) || (h$RTS_627.f.t === 5)))
+  {
+    h$sp++;
+    h$stack[h$sp] = h$c_sel_9_frame_e;
+    return h$e(h$RTS_627);
+  }
+  else
+  {
+    return h$e(h$RTS_627.d2.d8);
+  };
+};
+h$o(h$c_sel_9_e, 0, 0, 1, 256, null);
+function h$c_sel_9_frame_e()
+{
+  h$sp--;
+  return h$e(h$r1.d2.d8);
+};
+h$o(h$c_sel_9_frame_e, (-1), 0, 0, 256, null);
+function h$c_sel_10(h$RTS_628)
+{
+  if(((h$RTS_628.f.t === 0) || (h$RTS_628.f.t === 5)))
+  {
+    return h$mkSelThunk(h$RTS_628, h$c_sel_10_e, h$c_sel_10_res);
+  }
+  else
+  {
+    return h$RTS_628.d2.d9;
+  };
+};
+function h$c_sel_10_res(h$RTS_629)
+{
+  return h$RTS_629.d2.d9;
+};
+function h$c_sel_10_e()
+{
+  var h$RTS_630 = h$r1.d1;
+  if(((h$RTS_630.f.t === 0) || (h$RTS_630.f.t === 5)))
+  {
+    h$sp++;
+    h$stack[h$sp] = h$c_sel_10_frame_e;
+    return h$e(h$RTS_630);
+  }
+  else
+  {
+    return h$e(h$RTS_630.d2.d9);
+  };
+};
+h$o(h$c_sel_10_e, 0, 0, 1, 256, null);
+function h$c_sel_10_frame_e()
+{
+  h$sp--;
+  return h$e(h$r1.d2.d9);
+};
+h$o(h$c_sel_10_frame_e, (-1), 0, 0, 256, null);
+function h$c_sel_11(h$RTS_631)
+{
+  if(((h$RTS_631.f.t === 0) || (h$RTS_631.f.t === 5)))
+  {
+    return h$mkSelThunk(h$RTS_631, h$c_sel_11_e, h$c_sel_11_res);
+  }
+  else
+  {
+    return h$RTS_631.d2.d10;
+  };
+};
+function h$c_sel_11_res(h$RTS_632)
+{
+  return h$RTS_632.d2.d10;
+};
+function h$c_sel_11_e()
+{
+  var h$RTS_633 = h$r1.d1;
+  if(((h$RTS_633.f.t === 0) || (h$RTS_633.f.t === 5)))
+  {
+    h$sp++;
+    h$stack[h$sp] = h$c_sel_11_frame_e;
+    return h$e(h$RTS_633);
+  }
+  else
+  {
+    return h$e(h$RTS_633.d2.d10);
+  };
+};
+h$o(h$c_sel_11_e, 0, 0, 1, 256, null);
+function h$c_sel_11_frame_e()
+{
+  h$sp--;
+  return h$e(h$r1.d2.d10);
+};
+h$o(h$c_sel_11_frame_e, (-1), 0, 0, 256, null);
+function h$c_sel_12(h$RTS_634)
+{
+  if(((h$RTS_634.f.t === 0) || (h$RTS_634.f.t === 5)))
+  {
+    return h$mkSelThunk(h$RTS_634, h$c_sel_12_e, h$c_sel_12_res);
+  }
+  else
+  {
+    return h$RTS_634.d2.d11;
+  };
+};
+function h$c_sel_12_res(h$RTS_635)
+{
+  return h$RTS_635.d2.d11;
+};
+function h$c_sel_12_e()
+{
+  var h$RTS_636 = h$r1.d1;
+  if(((h$RTS_636.f.t === 0) || (h$RTS_636.f.t === 5)))
+  {
+    h$sp++;
+    h$stack[h$sp] = h$c_sel_12_frame_e;
+    return h$e(h$RTS_636);
+  }
+  else
+  {
+    return h$e(h$RTS_636.d2.d11);
+  };
+};
+h$o(h$c_sel_12_e, 0, 0, 1, 256, null);
+function h$c_sel_12_frame_e()
+{
+  h$sp--;
+  return h$e(h$r1.d2.d11);
+};
+h$o(h$c_sel_12_frame_e, (-1), 0, 0, 256, null);
+function h$c_sel_13(h$RTS_637)
+{
+  if(((h$RTS_637.f.t === 0) || (h$RTS_637.f.t === 5)))
+  {
+    return h$mkSelThunk(h$RTS_637, h$c_sel_13_e, h$c_sel_13_res);
+  }
+  else
+  {
+    return h$RTS_637.d2.d12;
+  };
+};
+function h$c_sel_13_res(h$RTS_638)
+{
+  return h$RTS_638.d2.d12;
+};
+function h$c_sel_13_e()
+{
+  var h$RTS_639 = h$r1.d1;
+  if(((h$RTS_639.f.t === 0) || (h$RTS_639.f.t === 5)))
+  {
+    h$sp++;
+    h$stack[h$sp] = h$c_sel_13_frame_e;
+    return h$e(h$RTS_639);
+  }
+  else
+  {
+    return h$e(h$RTS_639.d2.d12);
+  };
+};
+h$o(h$c_sel_13_e, 0, 0, 1, 256, null);
+function h$c_sel_13_frame_e()
+{
+  h$sp--;
+  return h$e(h$r1.d2.d12);
+};
+h$o(h$c_sel_13_frame_e, (-1), 0, 0, 256, null);
+function h$c_sel_14(h$RTS_640)
+{
+  if(((h$RTS_640.f.t === 0) || (h$RTS_640.f.t === 5)))
+  {
+    return h$mkSelThunk(h$RTS_640, h$c_sel_14_e, h$c_sel_14_res);
+  }
+  else
+  {
+    return h$RTS_640.d2.d13;
+  };
+};
+function h$c_sel_14_res(h$RTS_641)
+{
+  return h$RTS_641.d2.d13;
+};
+function h$c_sel_14_e()
+{
+  var h$RTS_642 = h$r1.d1;
+  if(((h$RTS_642.f.t === 0) || (h$RTS_642.f.t === 5)))
+  {
+    h$sp++;
+    h$stack[h$sp] = h$c_sel_14_frame_e;
+    return h$e(h$RTS_642);
+  }
+  else
+  {
+    return h$e(h$RTS_642.d2.d13);
+  };
+};
+h$o(h$c_sel_14_e, 0, 0, 1, 256, null);
+function h$c_sel_14_frame_e()
+{
+  h$sp--;
+  return h$e(h$r1.d2.d13);
+};
+h$o(h$c_sel_14_frame_e, (-1), 0, 0, 256, null);
+function h$c_sel_15(h$RTS_643)
+{
+  if(((h$RTS_643.f.t === 0) || (h$RTS_643.f.t === 5)))
+  {
+    return h$mkSelThunk(h$RTS_643, h$c_sel_15_e, h$c_sel_15_res);
+  }
+  else
+  {
+    return h$RTS_643.d2.d14;
+  };
+};
+function h$c_sel_15_res(h$RTS_644)
+{
+  return h$RTS_644.d2.d14;
+};
+function h$c_sel_15_e()
+{
+  var h$RTS_645 = h$r1.d1;
+  if(((h$RTS_645.f.t === 0) || (h$RTS_645.f.t === 5)))
+  {
+    h$sp++;
+    h$stack[h$sp] = h$c_sel_15_frame_e;
+    return h$e(h$RTS_645);
+  }
+  else
+  {
+    return h$e(h$RTS_645.d2.d14);
+  };
+};
+h$o(h$c_sel_15_e, 0, 0, 1, 256, null);
+function h$c_sel_15_frame_e()
+{
+  h$sp--;
+  return h$e(h$r1.d2.d14);
+};
+h$o(h$c_sel_15_frame_e, (-1), 0, 0, 256, null);
+function h$c_sel_16(h$RTS_646)
+{
+  if(((h$RTS_646.f.t === 0) || (h$RTS_646.f.t === 5)))
+  {
+    return h$mkSelThunk(h$RTS_646, h$c_sel_16_e, h$c_sel_16_res);
+  }
+  else
+  {
+    return h$RTS_646.d2.d15;
+  };
+};
+function h$c_sel_16_res(h$RTS_647)
+{
+  return h$RTS_647.d2.d15;
+};
+function h$c_sel_16_e()
+{
+  var h$RTS_648 = h$r1.d1;
+  if(((h$RTS_648.f.t === 0) || (h$RTS_648.f.t === 5)))
+  {
+    h$sp++;
+    h$stack[h$sp] = h$c_sel_16_frame_e;
+    return h$e(h$RTS_648);
+  }
+  else
+  {
+    return h$e(h$RTS_648.d2.d15);
+  };
+};
+h$o(h$c_sel_16_e, 0, 0, 1, 256, null);
+function h$c_sel_16_frame_e()
+{
+  h$sp--;
+  return h$e(h$r1.d2.d15);
+};
+h$o(h$c_sel_16_frame_e, (-1), 0, 0, 256, null);
 var h$THUNK_CLOSURE = 0;
 var h$FUN_CLOSURE = 1;
 var h$PAP_CLOSURE = 3;
 var h$CON_CLOSURE = 2;
 var h$BLACKHOLE_CLOSURE = 5;
 var h$STACKFRAME_CLOSURE = (-1);
-function h$closureTypeName(h$RTS_594)
+function h$closureTypeName(h$RTS_649)
 {
-  if((h$RTS_594 === 0))
+  if((h$RTS_649 === 0))
   {
     return "Thunk";
   };
-  if((h$RTS_594 === 1))
+  if((h$RTS_649 === 1))
   {
     return "Fun";
   };
-  if((h$RTS_594 === 3))
+  if((h$RTS_649 === 3))
   {
     return "Pap";
   };
-  if((h$RTS_594 === 2))
+  if((h$RTS_649 === 2))
   {
     return "Con";
   };
-  if((h$RTS_594 === 5))
+  if((h$RTS_649 === 5))
   {
     return "Blackhole";
   };
-  if((h$RTS_594 === (-1)))
+  if((h$RTS_649 === (-1)))
   {
     return "StackFrame";
   };
@@ -19866,9 +20715,9 @@ function h$runio_e()
   return h$ap_1_0;
 };
 h$o(h$runio_e, 0, 0, 1, 256, null);
-function h$runio(h$RTS_595)
+function h$runio(h$RTS_650)
 {
-  return h$c1(h$runio_e, h$RTS_595);
+  return h$c1(h$runio_e, h$RTS_650);
 };
 function h$flushStdout_e()
 {
@@ -19878,117 +20727,111 @@ function h$flushStdout_e()
 };
 h$o(h$flushStdout_e, 0, 0, 0, 0, null);
 var h$flushStdout = h$static_thunk(h$flushStdout_e);
-var h$RTS_596 = new Date();
-function h$dumpRes(h$RTS_597)
+var h$RTS_651 = new Date();
+function h$ascii(h$RTS_652)
 {
-  h$printcl(h$RTS_597);
-  var h$RTS_598 = new Date();
-  h$log((("elapsed time: " + (h$RTS_598.getTime() - h$RTS_596.getTime())) + "ms"));
-};
-function h$ascii(h$RTS_599)
-{
-  var h$RTS_600 = [];
-  for(var h$RTS_601 = 0;(h$RTS_601 < h$RTS_599.length);(h$RTS_601++)) {
-    h$RTS_600.push(h$RTS_599.charCodeAt(h$RTS_601));
+  var h$RTS_653 = [];
+  for(var h$RTS_654 = 0;(h$RTS_654 < h$RTS_652.length);(h$RTS_654++)) {
+    h$RTS_653.push(h$RTS_652.charCodeAt(h$RTS_654));
   };
-  h$RTS_600.push(0);
-  return h$RTS_600;
+  h$RTS_653.push(0);
+  return h$RTS_653;
 };
-function h$dumpStackTop(h$RTS_602, h$RTS_603, h$RTS_604)
+function h$dumpStackTop(h$RTS_655, h$RTS_656, h$RTS_657)
 {
-  h$RTS_603 = Math.max(h$RTS_603, 0);
-  for(var h$RTS_605 = h$RTS_603;(h$RTS_605 <= h$RTS_604);(h$RTS_605++)) {
-    var h$RTS_606 = h$RTS_602[h$RTS_605];
-    if((h$RTS_606 && h$RTS_606.n))
+  h$RTS_656 = Math.max(h$RTS_656, 0);
+  for(var h$RTS_658 = h$RTS_656;(h$RTS_658 <= h$RTS_657);(h$RTS_658++)) {
+    var h$RTS_659 = h$RTS_655[h$RTS_658];
+    if((h$RTS_659 && h$RTS_659.n))
     {
-      h$log(((("stack[" + h$RTS_605) + "] = ") + h$RTS_606.n));
+      h$log(((("stack[" + h$RTS_658) + "] = ") + h$RTS_659.n));
     }
     else
     {
-      if((h$RTS_606 === null))
+      if((h$RTS_659 === null))
       {
-        h$log((("stack[" + h$RTS_605) + "] = null WARNING DANGER"));
+        h$log((("stack[" + h$RTS_658) + "] = null WARNING DANGER"));
       }
       else
       {
-        if((((((typeof h$RTS_606 === "object") && (h$RTS_606 !== null)) && h$RTS_606.hasOwnProperty("f")) && h$RTS_606.
-        hasOwnProperty("d1")) && h$RTS_606.hasOwnProperty("d2")))
+        if((((((typeof h$RTS_659 === "object") && (h$RTS_659 !== null)) && h$RTS_659.hasOwnProperty("f")) && h$RTS_659.
+        hasOwnProperty("d1")) && h$RTS_659.hasOwnProperty("d2")))
         {
-          if((typeof h$RTS_606.f !== "function"))
+          if((typeof h$RTS_659.f !== "function"))
           {
-            h$log((("stack[" + h$RTS_605) + "] = WARNING: dodgy object"));
+            h$log((("stack[" + h$RTS_658) + "] = WARNING: dodgy object"));
           }
           else
           {
-            if((h$RTS_606.d1 === undefined))
+            if((h$RTS_659.d1 === undefined))
             {
-              h$log((("WARNING: stack[" + h$RTS_605) + "] d1 undefined"));
+              h$log((("WARNING: stack[" + h$RTS_658) + "] d1 undefined"));
             };
-            if((h$RTS_606.d2 === undefined))
+            if((h$RTS_659.d2 === undefined))
             {
-              h$log((("WARNING: stack[" + h$RTS_605) + "] d2 undefined"));
+              h$log((("WARNING: stack[" + h$RTS_658) + "] d2 undefined"));
             };
-            if(((((h$RTS_606.f.t === 5) && h$RTS_606.d1) && h$RTS_606.d1.x1) && h$RTS_606.d1.x1.n))
+            if(((((h$RTS_659.f.t === 5) && h$RTS_659.d1) && h$RTS_659.d1.x1) && h$RTS_659.d1.x1.n))
             {
-              h$log(((("stack[" + h$RTS_605) + "] = blackhole -> ") + h$RTS_606.d1.x1.n));
+              h$log(((("stack[" + h$RTS_658) + "] = blackhole -> ") + h$RTS_659.d1.x1.n));
             }
             else
             {
-              var h$RTS_607 = "";
-              if(((h$RTS_606.f.n === "integer-gmp:GHC.Integer.Type.Jp#") || (h$RTS_606.f.n === "integer-gmp:GHC.Integer.Type.Jn#")))
+              var h$RTS_660 = "";
+              if(((h$RTS_659.f.n === "integer-gmp:GHC.Integer.Type.Jp#") || (h$RTS_659.f.n === "integer-gmp:GHC.Integer.Type.Jn#")))
               {
-                h$RTS_607 = ((((" [" + h$RTS_606.d1.join(",")) + "](") + h$ghcjsbn_showBase(h$RTS_606.d1, 10)) + ")");
+                h$RTS_660 = ((((" [" + h$RTS_659.d1.join(",")) + "](") + h$ghcjsbn_showBase(h$RTS_659.d1, 10)) + ")");
               }
               else
               {
-                if((h$RTS_606.f.n === "integer-gmp:GHC.Integer.Type.S#"))
+                if((h$RTS_659.f.n === "integer-gmp:GHC.Integer.Type.S#"))
                 {
-                  h$RTS_607 = ((" (S: " + h$RTS_606.d1) + ")");
+                  h$RTS_660 = ((" (S: " + h$RTS_659.d1) + ")");
                 };
               };
-              h$log((((((((((("stack[" + h$RTS_605) + "] = -> ") + (h$RTS_606.alloc ? (h$RTS_606.alloc + ": ") : "")) + h$RTS_606.f.
-              n) + " (") + h$closureTypeName(h$RTS_606.f.t)) + ", a: ") + h$RTS_606.f.a) + ")") + h$RTS_607));
+              h$log((((((((((("stack[" + h$RTS_658) + "] = -> ") + (h$RTS_659.alloc ? (h$RTS_659.alloc + ": ") : "")) + h$RTS_659.f.
+              n) + " (") + h$closureTypeName(h$RTS_659.f.t)) + ", a: ") + h$RTS_659.f.a) + ")") + h$RTS_660));
             };
           };
         }
         else
         {
-          if(h$isInstanceOf(h$RTS_606, h$MVar))
+          if(h$isInstanceOf(h$RTS_659, h$MVar))
           {
-            var h$RTS_608 = ((h$RTS_606.val === null) ? " empty" : (" value -> " + ((typeof h$RTS_606.
-            val === "object") ? (((((h$RTS_606.val.f.n + " (") + h$closureTypeName(h$RTS_606.val.f.t)) + ", a: ") + h$RTS_606.val.f.
-            a) + ")") : h$RTS_606.val)));
-            h$log(((("stack[" + h$RTS_605) + "] = MVar ") + h$RTS_608));
+            var h$RTS_661 = ((h$RTS_659.val === null) ? " empty" : (" value -> " + ((typeof h$RTS_659.
+            val === "object") ? (((((h$RTS_659.val.f.n + " (") + h$closureTypeName(h$RTS_659.val.f.t)) + ", a: ") + h$RTS_659.val.f.
+            a) + ")") : h$RTS_659.val)));
+            h$log(((("stack[" + h$RTS_658) + "] = MVar ") + h$RTS_661));
           }
           else
           {
-            if(h$isInstanceOf(h$RTS_606, h$MutVar))
+            if(h$isInstanceOf(h$RTS_659, h$MutVar))
             {
-              h$log(((("stack[" + h$RTS_605) + "] = IORef -> ") + ((typeof h$RTS_606.val === "object") ? (((((h$RTS_606.val.f.
-              n + " (") + h$closureTypeName(h$RTS_606.val.f.t)) + ", a: ") + h$RTS_606.val.f.a) + ")") : h$RTS_606.val)));
+              h$log(((("stack[" + h$RTS_658) + "] = IORef -> ") + ((typeof h$RTS_659.val === "object") ? (((((h$RTS_659.val.f.
+              n + " (") + h$closureTypeName(h$RTS_659.val.f.t)) + ", a: ") + h$RTS_659.val.f.a) + ")") : h$RTS_659.val)));
             }
             else
             {
-              if(Array.isArray(h$RTS_606))
+              if(Array.isArray(h$RTS_659))
               {
-                h$log(((("stack[" + h$RTS_605) + "] = ") + (("[" + h$RTS_606.join(",")) + "]").substring(0, 50)));
+                h$log(((("stack[" + h$RTS_658) + "] = ") + (("[" + h$RTS_659.join(",")) + "]").substring(0, 50)));
               }
               else
               {
-                if((typeof h$RTS_606 === "object"))
+                if((typeof h$RTS_659 === "object"))
                 {
-                  h$log(((("stack[" + h$RTS_605) + "] = ") + h$collectProps(h$RTS_606).substring(0, 50)));
+                  h$log(((("stack[" + h$RTS_658) + "] = ") + h$collectProps(h$RTS_659).substring(0, 50)));
                 }
                 else
                 {
-                  if((typeof h$RTS_606 === "function"))
+                  if((typeof h$RTS_659 === "function"))
                   {
-                    var h$RTS_609 = new RegExp("([^\\n]+)\\n(.|\\n)*");
-                    h$log(((("stack[" + h$RTS_605) + "] = ") + ("" + h$RTS_606).substring(0, 50).replace(h$RTS_609, "$1")));
+                    var h$RTS_662 = new RegExp("([^\\n]+)\\n(.|\\n)*");
+                    h$log(((("stack[" + h$RTS_658) + "] = ") + ("" + h$RTS_659).substring(0, 50).replace(h$RTS_662, "$1")));
                   }
                   else
                   {
-                    h$log(((("stack[" + h$RTS_605) + "] = ") + ("" + h$RTS_606).substring(0, 50)));
+                    h$log(((("stack[" + h$RTS_658) + "] = ") + ("" + h$RTS_659).substring(0, 50)));
                   };
                 };
               };
@@ -19999,132 +20842,132 @@ function h$dumpStackTop(h$RTS_602, h$RTS_603, h$RTS_604)
     };
   };
 };
-function h$checkObj(h$RTS_610)
+function h$checkObj(h$RTS_663)
 {
-  if(((typeof h$RTS_610 === "boolean") || (typeof h$RTS_610 === "number")))
+  if(((typeof h$RTS_663 === "boolean") || (typeof h$RTS_663 === "number")))
   {
     return undefined;
   };
-  if(((((!h$RTS_610.hasOwnProperty("f") || (h$RTS_610.f === null)) || (h$RTS_610.f === undefined)) || (h$RTS_610.f.
-  a === undefined)) || (typeof h$RTS_610.f !== "function")))
+  if(((((!h$RTS_663.hasOwnProperty("f") || (h$RTS_663.f === null)) || (h$RTS_663.f === undefined)) || (h$RTS_663.f.
+  a === undefined)) || (typeof h$RTS_663.f !== "function")))
   {
     h$log("h$checkObj: WARNING, something wrong with f:");
-    h$log(("" + h$RTS_610).substring(0, 200));
-    h$log(h$collectProps(h$RTS_610));
-    h$log(typeof h$RTS_610.f);
+    h$log(("" + h$RTS_663).substring(0, 200));
+    h$log(h$collectProps(h$RTS_663));
+    h$log(typeof h$RTS_663.f);
   };
-  if((!h$RTS_610.hasOwnProperty("d1") || (h$RTS_610.d1 === undefined)))
+  if((!h$RTS_663.hasOwnProperty("d1") || (h$RTS_663.d1 === undefined)))
   {
     h$log("h$checkObj: WARNING, something wrong with d1:");
-    h$log(("" + h$RTS_610).substring(0, 200));
+    h$log(("" + h$RTS_663).substring(0, 200));
   }
   else
   {
-    if((!h$RTS_610.hasOwnProperty("d2") || (h$RTS_610.d2 === undefined)))
+    if((!h$RTS_663.hasOwnProperty("d2") || (h$RTS_663.d2 === undefined)))
     {
       h$log("h$checkObj: WARNING, something wrong with d2:");
-      h$log(("" + h$RTS_610).substring(0, 200));
+      h$log(("" + h$RTS_663).substring(0, 200));
     }
     else
     {
-      if((((h$RTS_610.d2 !== null) && (typeof h$RTS_610.d2 === "object")) && (h$RTS_610.f.size !== 2)))
+      if((((h$RTS_663.d2 !== null) && (typeof h$RTS_663.d2 === "object")) && (h$RTS_663.f.size !== 2)))
       {
-        var h$RTS_611 = h$RTS_610.d2;
-        var h$RTS_612;
-        for(h$RTS_612 in h$RTS_611)
+        var h$RTS_664 = h$RTS_663.d2;
+        var h$RTS_665;
+        for(h$RTS_665 in h$RTS_664)
         {
-          if(h$RTS_611.hasOwnProperty(h$RTS_612))
+          if(h$RTS_664.hasOwnProperty(h$RTS_665))
           {
-            if((h$RTS_612.substring(0, 1) != "d"))
+            if((h$RTS_665.substring(0, 1) != "d"))
             {
-              h$log(("h$checkObj: WARNING, unexpected field name: " + h$RTS_612));
-              h$log(("" + h$RTS_610).substring(0, 200));
+              h$log(("h$checkObj: WARNING, unexpected field name: " + h$RTS_665));
+              h$log(("" + h$RTS_663).substring(0, 200));
             };
-            if((h$RTS_611[h$RTS_612] === undefined))
+            if((h$RTS_664[h$RTS_665] === undefined))
             {
-              h$log(("h$checkObj: WARNING, undefined field detected: " + h$RTS_612));
-              h$log(("" + h$RTS_610).substring(0, 200));
+              h$log(("h$checkObj: WARNING, undefined field detected: " + h$RTS_665));
+              h$log(("" + h$RTS_663).substring(0, 200));
             };
           };
         };
-        switch (h$RTS_610.f.size)
+        switch (h$RTS_663.f.size)
         {
           case (6):
-            if((h$RTS_611.d5 === undefined))
+            if((h$RTS_664.d5 === undefined))
             {
               h$log("h$checkObj: WARNING, undefined field detected: d5");
             };
           case (5):
-            if((h$RTS_611.d4 === undefined))
+            if((h$RTS_664.d4 === undefined))
             {
               h$log("h$checkObj: WARNING, undefined field detected: d4");
             };
           case (4):
-            if((h$RTS_611.d3 === undefined))
+            if((h$RTS_664.d3 === undefined))
             {
               h$log("h$checkObj: WARNING, undefined field detected: d3");
             };
           case (3):
-            if((h$RTS_611.d2 === undefined))
+            if((h$RTS_664.d2 === undefined))
             {
               h$log("h$checkObj: WARNING, undefined field detected: d2");
             };
-            if((h$RTS_611.d1 === undefined))
+            if((h$RTS_664.d1 === undefined))
             {
               h$log("h$checkObj: WARNING, undefined field detected: d1");
             };
           default:
-            h$RTS_611 = h$RTS_610.d2;
+            h$RTS_664 = h$RTS_663.d2;
         };
       };
     };
   };
 };
-function h$traceForeign(h$RTS_613, h$RTS_614)
+function h$traceForeign(h$RTS_666, h$RTS_667)
 {
   if(true)
   {
     return undefined;
   };
-  var h$RTS_615 = [];
-  for(var h$RTS_616 = 0;(h$RTS_616 < h$RTS_614.length);(h$RTS_616++)) {
-    var h$RTS_617 = h$RTS_614[h$RTS_616];
-    if((h$RTS_617 === null))
+  var h$RTS_668 = [];
+  for(var h$RTS_669 = 0;(h$RTS_669 < h$RTS_667.length);(h$RTS_669++)) {
+    var h$RTS_670 = h$RTS_667[h$RTS_669];
+    if((h$RTS_670 === null))
     {
-      h$RTS_615.push("null");
+      h$RTS_668.push("null");
     }
     else
     {
-      if((typeof h$RTS_617 === "object"))
+      if((typeof h$RTS_670 === "object"))
       {
-        var h$RTS_618 = h$RTS_617.toString();
-        if((h$RTS_618.length > 40))
+        var h$RTS_671 = h$RTS_670.toString();
+        if((h$RTS_671.length > 40))
         {
-          h$RTS_615.push((h$RTS_618.substring(0, 40) + "..."));
+          h$RTS_668.push((h$RTS_671.substring(0, 40) + "..."));
         }
         else
         {
-          h$RTS_615.push(h$RTS_618);
+          h$RTS_668.push(h$RTS_671);
         };
       }
       else
       {
-        h$RTS_615.push(("" + h$RTS_617));
+        h$RTS_668.push(("" + h$RTS_670));
       };
     };
   };
-  h$log((((("ffi: " + h$RTS_613) + "(") + h$RTS_615.join(",")) + ")"));
+  h$log((((("ffi: " + h$RTS_666) + "(") + h$RTS_668.join(",")) + ")"));
 };
 function h$restoreThread()
 {
-  var h$RTS_619 = h$stack[(h$sp - 2)];
-  var h$RTS_620 = h$stack[(h$sp - 1)];
-  var h$RTS_621 = (h$RTS_620 - 3);
-  for(var h$RTS_622 = 1;(h$RTS_622 <= h$RTS_621);(h$RTS_622++)) {
-    h$setReg(h$RTS_622, h$stack[((h$sp - 2) - h$RTS_622)]);
+  var h$RTS_672 = h$stack[(h$sp - 2)];
+  var h$RTS_673 = h$stack[(h$sp - 1)];
+  var h$RTS_674 = (h$RTS_673 - 3);
+  for(var h$RTS_675 = 1;(h$RTS_675 <= h$RTS_674);(h$RTS_675++)) {
+    h$setReg(h$RTS_675, h$stack[((h$sp - 2) - h$RTS_675)]);
   };
-  h$sp -= h$RTS_620;
-  return h$RTS_619;
+  h$sp -= h$RTS_673;
+  return h$RTS_672;
 };
 h$o(h$restoreThread, (-1), 0, (-1), 0, null);
 function h$return()
@@ -20136,9 +20979,9 @@ function h$return()
 h$o(h$return, (-1), 0, 1, 0, null);
 function h$returnf()
 {
-  var h$RTS_623 = h$stack[(h$sp - 1)];
+  var h$RTS_676 = h$stack[(h$sp - 1)];
   h$sp -= 2;
-  return h$RTS_623;
+  return h$RTS_676;
 };
 h$o(h$returnf, (-1), 0, 1, 256, null);
 function h$reschedule()
@@ -20146,49 +20989,49 @@ function h$reschedule()
   return h$reschedule;
 };
 h$o(h$reschedule, 0, 0, 0, 0, null);
-function h$suspendCurrentThread(h$RTS_624)
+function h$suspendCurrentThread(h$RTS_677)
 {
-  if((h$RTS_624 === h$reschedule))
+  if((h$RTS_677 === h$reschedule))
   {
     throw("suspend called with h$reschedule");
   };
-  if((h$RTS_624.t === (-1)))
+  if((h$RTS_677.t === (-1)))
   {
-    h$stack[h$sp] = h$RTS_624;
+    h$stack[h$sp] = h$RTS_677;
   };
-  if(((h$stack[h$sp] === h$restoreThread) || (h$RTS_624 === h$return)))
+  if(((h$stack[h$sp] === h$restoreThread) || (h$RTS_677 === h$return)))
   {
     h$currentThread.sp = h$sp;
     return undefined;
   };
-  var h$RTS_625;
-  var h$RTS_626 = 0;
-  var h$RTS_627 = h$RTS_624.t;
-  if((h$RTS_627 === 3))
+  var h$RTS_678;
+  var h$RTS_679 = 0;
+  var h$RTS_680 = h$RTS_677.t;
+  if((h$RTS_680 === 3))
   {
-    h$RTS_625 = ((h$r1.d2.d1 >> 8) + 1);
+    h$RTS_678 = ((h$r1.d2.d1 >> 8) + 1);
   }
   else
   {
-    if(((h$RTS_627 === 1) || (h$RTS_627 === (-1))))
+    if(((h$RTS_680 === 1) || (h$RTS_680 === (-1))))
     {
-      h$RTS_625 = (h$RTS_624.r >> 8);
-      h$RTS_626 = (h$RTS_624.r & 255);
+      h$RTS_678 = (h$RTS_677.r >> 8);
+      h$RTS_679 = (h$RTS_677.r & 255);
     }
     else
     {
-      h$RTS_625 = 1;
+      h$RTS_678 = 1;
     };
   };
-  h$sp = (((h$sp + h$RTS_625) + h$RTS_626) + 3);
-  for(var h$RTS_628 = 1;(h$RTS_628 <= h$RTS_626);(h$RTS_628++)) {
-    h$stack[((h$sp - 2) - h$RTS_628)] = null;
+  h$sp = (((h$sp + h$RTS_678) + h$RTS_679) + 3);
+  for(var h$RTS_681 = 1;(h$RTS_681 <= h$RTS_679);(h$RTS_681++)) {
+    h$stack[((h$sp - 2) - h$RTS_681)] = null;
   };
-  for(h$RTS_628 = (h$RTS_626 + 1);(h$RTS_628 <= (h$RTS_625 + h$RTS_626));(h$RTS_628++)) {
-    h$stack[((h$sp - 2) - h$RTS_628)] = h$getReg(h$RTS_628);
+  for(h$RTS_681 = (h$RTS_679 + 1);(h$RTS_681 <= (h$RTS_678 + h$RTS_679));(h$RTS_681++)) {
+    h$stack[((h$sp - 2) - h$RTS_681)] = h$getReg(h$RTS_681);
   };
-  h$stack[(h$sp - 2)] = h$RTS_624;
-  h$stack[(h$sp - 1)] = ((h$RTS_625 + h$RTS_626) + 3);
+  h$stack[(h$sp - 2)] = h$RTS_677;
+  h$stack[(h$sp - 1)] = ((h$RTS_678 + h$RTS_679) + 3);
   h$stack[h$sp] = h$restoreThread;
   h$currentThread.sp = h$sp;
 };
@@ -20211,8 +21054,8 @@ function h$dumpRes()
   };
   if(h$r1.f)
   {
-    var h$RTS_629 = new RegExp("([^\\n]+)\\n(.|\\n)*");
-    h$log(("function: " + ("" + h$r1.f).substring(0, 50).replace(h$RTS_629, "$1")));
+    var h$RTS_682 = new RegExp("([^\\n]+)\\n(.|\\n)*");
+    h$log(("function: " + ("" + h$r1.f).substring(0, 50).replace(h$RTS_682, "$1")));
   };
   h$sp -= 2;
   return h$stack[h$sp];
@@ -20220,12 +21063,12 @@ function h$dumpRes()
 h$o(h$dumpRes, 0, 0, 1, 256, null);
 function h$resume_e()
 {
-  var h$RTS_630 = h$r1.d1;
+  var h$RTS_683 = h$r1.d1;
   h$bh();
-  for(var h$RTS_631 = 0;(h$RTS_631 < h$RTS_630.length);(h$RTS_631++)) {
-    h$stack[((h$sp + 1) + h$RTS_631)] = h$RTS_630[h$RTS_631];
+  for(var h$RTS_684 = 0;(h$RTS_684 < h$RTS_683.length);(h$RTS_684++)) {
+    h$stack[((h$sp + 1) + h$RTS_684)] = h$RTS_683[h$RTS_684];
   };
-  h$sp += h$RTS_630.length;
+  h$sp += h$RTS_683.length;
   h$r1 = null;
   return h$stack[h$sp];
 };
@@ -20261,9 +21104,9 @@ function h$maskUnintFrame()
 h$o(h$maskUnintFrame, (-1), 0, 0, 256, null);
 function h$unboxFFIResult()
 {
-  var h$RTS_632 = h$r1.d1;
-  for(var h$RTS_633 = 0;(h$RTS_633 < h$RTS_632.length);(h$RTS_633++)) {
-    h$setReg((h$RTS_633 + 1), h$RTS_632[h$RTS_633]);
+  var h$RTS_685 = h$r1.d1;
+  for(var h$RTS_686 = 0;(h$RTS_686 < h$RTS_685.length);(h$RTS_686++)) {
+    h$setReg((h$RTS_686 + 1), h$RTS_685[h$RTS_686]);
   };
   --h$sp;
   return h$stack[h$sp];
@@ -20277,9 +21120,9 @@ function h$unbox_e()
 h$o(h$unbox_e, 0, 0, 1, 256, null);
 function h$retryInterrupted()
 {
-  var h$RTS_634 = h$stack[(h$sp - 1)];
+  var h$RTS_687 = h$stack[(h$sp - 1)];
   h$sp -= 2;
-  return h$RTS_634[0].apply(this, h$RTS_634.slice(1));
+  return h$RTS_687[0].apply(this, h$RTS_687.slice(1));
 };
 h$o(h$retryInterrupted, (-1), 0, 1, 256, null);
 function h$atomically_e()
@@ -20306,23 +21149,23 @@ function h$checkInvariants_e()
 h$o(h$checkInvariants_e, (-1), 0, 0, 256, null);
 function h$stmCheckInvariantStart_e()
 {
-  var h$RTS_635 = h$stack[(h$sp - 2)];
-  var h$RTS_636 = h$stack[(h$sp - 1)];
-  var h$RTS_637 = h$currentThread.mask;
+  var h$RTS_688 = h$stack[(h$sp - 2)];
+  var h$RTS_689 = h$stack[(h$sp - 1)];
+  var h$RTS_690 = h$currentThread.mask;
   h$sp -= 3;
-  var h$RTS_638 = new h$Transaction(h$RTS_636.action, h$RTS_635);
-  h$RTS_638.checkRead = new h$Set();
-  h$currentThread.transaction = h$RTS_638;
-  h$p4(h$RTS_638, h$RTS_637, h$stmInvariantViolatedHandler, h$catchStm_e);
-  h$r1 = h$RTS_636.action;
+  var h$RTS_691 = new h$Transaction(h$RTS_689.action, h$RTS_688);
+  h$RTS_691.checkRead = new h$Set();
+  h$currentThread.transaction = h$RTS_691;
+  h$p4(h$RTS_691, h$RTS_690, h$stmInvariantViolatedHandler, h$catchStm_e);
+  h$r1 = h$RTS_689.action;
   return h$ap_1_0_fast();
 };
 h$o(h$stmCheckInvariantStart_e, (-1), 0, 2, 0, null);
 function h$stmCheckInvariantResult_e()
 {
-  var h$RTS_639 = h$stack[(h$sp - 1)];
+  var h$RTS_692 = h$stack[(h$sp - 1)];
   h$sp -= 2;
-  h$stmUpdateInvariantDependencies(h$RTS_639);
+  h$stmUpdateInvariantDependencies(h$RTS_692);
   h$stmAbortTransaction();
   return h$stack[h$sp];
 };
@@ -20333,9 +21176,9 @@ function h$stmInvariantViolatedHandler_e()
   {
     throw("h$stmInvariantViolatedHandler_e: unexpected value on stack");
   };
-  var h$RTS_640 = h$stack[(h$sp - 1)];
+  var h$RTS_693 = h$stack[(h$sp - 1)];
   h$sp -= 2;
-  h$stmUpdateInvariantDependencies(h$RTS_640);
+  h$stmUpdateInvariantDependencies(h$RTS_693);
   h$stmAbortTransaction();
   return h$throw(h$r2, false);
 };
@@ -20360,19 +21203,19 @@ function h$stmResumeRetry_e()
   {
     throw("h$stmResumeRetry_e: unexpected value on stack");
   };
-  var h$RTS_641 = h$stack[(h$sp - 1)];
+  var h$RTS_694 = h$stack[(h$sp - 1)];
   h$sp -= 2;
   ++h$sp;
   h$stack[h$sp] = h$checkInvariants_e;
-  h$stmRemoveBlockedThread(h$RTS_641, h$currentThread);
+  h$stmRemoveBlockedThread(h$RTS_694, h$currentThread);
   return h$stmStartTransaction(h$stack[(h$sp - 2)]);
 };
 h$o(h$stmResumeRetry_e, (-1), 0, 0, 256, null);
 function h$lazy_e()
 {
-  var h$RTS_642 = h$r1.d1();
+  var h$RTS_695 = h$r1.d1();
   h$bh();
-  h$r1 = h$RTS_642;
+  h$r1 = h$RTS_695;
   return h$stack[h$sp];
 };
 h$o(h$lazy_e, 0, 0, 0, 256, null);
