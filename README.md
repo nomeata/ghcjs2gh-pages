@@ -55,10 +55,6 @@ FAQ
     GHCJS is tricky to build, but thanks to [hvr’s GHCJS
     PPA](https://launchpad.net/~hvr/+archive/ubuntu/ghcjs) the pain is lessend.
 
-  * Why `--constraint="primitive < 0.6.4.0`?
-
-    Becuase of this bug: https://github.com/ghcjs/ghcjs/issues/665
-
 Possible improvements (patches welcome!)
 ----------------------------------------
 
